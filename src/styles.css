@@ -274,8 +274,7 @@
 .panel-ink { background: var(--ink); color: var(--bone); border-radius: 28px; }
 
 .home-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: start; }
-.home-grid > :first-child { position: sticky; top: 16px; }
-@media (max-width: 1023px) { .home-grid { grid-template-columns: 1fr; } .home-grid > :first-child { position: static; } }
+@media (max-width: 1023px) { .home-grid { grid-template-columns: 1fr; } }
 
 .balance-panel { container-type: inline-size; background: radial-gradient(120% 80% at 100% 0%, rgb(52 99 196 / .38), transparent 55%), var(--ink); }
 .balance-figure { font-size: clamp(40px, 15cqw, 84px); white-space: nowrap; line-height: .95; font-weight: 500; letter-spacing: -0.055em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
