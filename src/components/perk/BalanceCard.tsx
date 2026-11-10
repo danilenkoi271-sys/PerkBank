@@ -1,8 +1,10 @@
 import { useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Link } from '@tanstack/react-router';
-import { ArrowUpRight, Copy, TrendingUp } from 'lucide-react';
+import { ArrowUpRight, Copy, LoaderCircle, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
-import { CountUp } from './motion';
+import { isPreparing, prepLabel } from '@/lib/live-trade';
+import { CountUp, EASE } from './motion';
 import { Position, useLivePositions, type LiveOrderRow } from './LiveInvestments';
 
 function greeting() {
@@ -17,7 +19,11 @@ function greeting() {
  */
 export function BalanceCard({ balance, firstName, iban, orders, clockOffset }: { balance: number; firstName: string; iban: string; orders: LiveOrderRow[]; clockOffset: number }) {
   const { visible, now } = useLivePositions(orders, clockOffset);
-  const trading = visible.length > 0;
+  // A new trade is first "prepared" for 5 to 15 seconds; only then does the card morph into the live view.
+  const preparing = visible.find(o => isPreparing(o, now));
+  const trading = visible.length > 0 && !preparing;
+  const busy = visible.length > 0; // any active trade keeps the buttons replaced
+  const label = preparing ? prepLabel(preparing, now - Date.parse(preparing.created_at)) : 'Placing order';
   // Keep the last positions around so the chart content stays put while the card folds back.
   const last = useRef<LiveOrderRow[]>([]);
   if (trading) last.current = visible;
@@ -32,9 +38,19 @@ export function BalanceCard({ balance, firstName, iban, orders, clockOffset }: {
     </div>
 
     <div className="morph-actions" aria-hidden={trading} {...(trading ? { inert: true } : {})}>
-      <div><div className="grid grid-cols-2 gap-2 pt-10">
-        <Link to="/send" className="action-btn action-court"><ArrowUpRight/>Send money</Link>
-        <Link to="/account" search={{ view: 'invest' }} className="action-btn action-bone"><TrendingUp/>Invest</Link>
+      <div><div className="pt-10">
+        <AnimatePresence mode="wait" initial={false}>
+          {busy ? <motion.div key="thinking" role="status" aria-live="polite" initial={{ opacity: 0, y: 10, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.97 }} transition={{ duration: 0.45, ease: EASE }} className="flex h-[52px] items-center gap-3 rounded-full bg-white/[0.07] px-5 ring-1 ring-inset ring-white/10">
+            <LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-[#7aa2ff]" aria-hidden="true"/>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span key={label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.28, ease: EASE }} className="thinking-text text-[15px]">{label}…</motion.span>
+            </AnimatePresence>
+          </motion.div>
+          : <motion.div key="buttons" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.4, ease: EASE }} className="grid grid-cols-2 gap-2">
+            <Link to="/send" className="action-btn action-court"><ArrowUpRight/>Send money</Link>
+            <Link to="/account" search={{ view: 'invest' }} className="action-btn action-bone"><TrendingUp/>Invest</Link>
+          </motion.div>}
+        </AnimatePresence>
       </div></div>
     </div>
 

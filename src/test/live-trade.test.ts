@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasActiveTrade, pendingValue, settlingValue, SETTLE_FAIL_MS, SETTLE_SUCCESS_MS, TRADE_LOCK_MS } from '@/lib/live-trade';
+import { fillTime, hasActiveTrade, isPreparing, pendingValue, prepDuration, prepLabel, settlingValue, SETTLE_FAIL_MS, SETTLE_SUCCESS_MS, TRADE_LOCK_MS } from '@/lib/live-trade';
 
 const order = { id: 'abc-123', amount: 100, multiplier: 2, status: 'pending' };
 
@@ -86,5 +86,38 @@ describe('one trade at a time', () => {
   it('is free with no orders or only old ones', () => {
     expect(hasActiveTrade([], now)).toBe(false);
     expect(hasActiveTrade([{ status: 'failed', settled_at: new Date(now - 3_600_000).toISOString() }], now)).toBe(false);
+  });
+});
+
+describe('trade preparation', () => {
+  const placed = (id: string) => ({ id, amount: 100, multiplier: 2, status: 'pending', created_at: '2026-11-10T21:00:00.000Z' });
+  it('takes between 5 and 15 seconds, varies per trade, and is the same on every device', () => {
+    const d = Array.from({ length: 200 }, (_, i) => prepDuration(placed(`trade-${i}`)));
+    expect(Math.min(...d)).toBeGreaterThanOrEqual(5000);
+    expect(Math.max(...d)).toBeLessThanOrEqual(15000);
+    expect(new Set(d).size).toBeGreaterThan(100);
+    expect(prepDuration(placed('same'))).toBe(prepDuration({ ...placed('same') }));
+  });
+  it('is preparing only until the fill time, and only while pending', () => {
+    const o = placed('x'); const fill = fillTime(o);
+    expect(isPreparing(o, fill - 1)).toBe(true);
+    expect(isPreparing(o, fill)).toBe(false);
+    expect(isPreparing({ ...o, status: 'success' }, fill - 1)).toBe(false);
+  });
+  it('shows sensible steps in order and always finishes on placing the order', () => {
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
+      const o = placed(id); const total = prepDuration(o);
+      const seen: string[] = [];
+      for (let t = 0; t < total; t += 50) { const l = prepLabel(o, t); if (seen[seen.length - 1] !== l) seen.push(l); }
+      expect(seen[0]).toBe('Searching coins');
+      expect(seen[seen.length - 1]).toBe('Placing order');
+      expect(new Set(seen).size).toBe(seen.length);
+      expect(seen.length).toBeGreaterThanOrEqual(4);
+    }
+  });
+  it('the live price starts at the stake exactly when the trade goes live', () => {
+    const o = placed('start-check');
+    expect(pendingValue(o, fillTime(o))).toBeCloseTo(100, 6);
+    expect(pendingValue(o, fillTime(o) - 4000)).toBeCloseTo(100, 6);
   });
 });

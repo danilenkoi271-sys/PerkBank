@@ -389,3 +389,5 @@
   .morph-head, .morph-head > *, .morph-actions, .morph-trade { transition-duration: 0s !important; transition-delay: 0s !important; }
 }
 .txn-panel { background: radial-gradient(90% 38% at 0% 0%, rgb(52 99 196 / .3), transparent 62%), radial-gradient(60% 30% at 100% 100%, rgb(242 107 42 / .08), transparent 70%), var(--ink); }
+.thinking-text { background: linear-gradient(90deg, rgb(243 242 238 / .45) 0%, rgb(243 242 238 / .98) 50%, rgb(243 242 238 / .45) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .thinking-text { animation: none; color: rgb(243 242 238 / .85); background: none; } }

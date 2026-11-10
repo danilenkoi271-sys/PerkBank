@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { formatMoney } from '@/lib/categories';
-import { liveChange, pendingValue, settleDuration, settlingValue, type LiveOrder } from '@/lib/live-trade';
+import { fillTime, liveChange, pendingValue, settleDuration, settlingValue, type LiveOrder } from '@/lib/live-trade';
 
 type Order = LiveOrder & { settled_at: string | null; created_at: string };
 
@@ -53,7 +53,7 @@ export function Position({ order, now }: { order: Order; now: number }) {
   const { diff, percent, up } = liveChange(order, value);
   const label = done ? (order.status === 'success' ? 'Success' : 'Failed') : 'Live';
   const color = up ? UP : DOWN;
-  const created = Date.parse(order.created_at);
+  const created = fillTime(order); // the live view starts when the order goes live
   return <div aria-label={`Live investment ${order.multiplier.toFixed(1)}×`}>
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2.5">
@@ -88,8 +88,8 @@ const DOMAIN_STEP_MS = 2000;
 
 function Chart({ order, start, now, color }: { order: Order; start: number | undefined; now: number; color: string }) {
   const id = useId().replace(/:/g, '');
-  const parsed = Date.parse(order.created_at);
-  const created = Number.isFinite(parsed) ? parsed : now;
+  const filled = fillTime(order);
+  const created = Number.isFinite(filled) ? filled : now;
   const growing = now - created < WINDOW_MS; // the line draws in from the left until it reaches the right edge
   const from = growing ? created : now - WINDOW_MS;
   const at = (t: number) => valueAt(order, start, t);

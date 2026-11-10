@@ -3,8 +3,8 @@
 
 export type LiveOrder = { id: string; amount: number; multiplier: number; status: string; created_at?: string | null };
 
-export const SETTLE_SUCCESS_MS = 28000;
-export const SETTLE_FAIL_MS = 34000;
+export const SETTLE_SUCCESS_MS = 40000;
+export const SETTLE_FAIL_MS = 48000;
 
 function seed(id: string) {
   let h = 2166136261;
@@ -16,13 +16,13 @@ function hash(i: number, s: number) { const x = Math.sin(i * 127.1 + s * 311.7) 
 const ease = (f: number) => { const s = f * f * (3 - 2 * f); return s * s * (3 - 2 * s); };
 /** Value noise that rests on a level for a moment, then moves: gives the line its small stalls and ticks. */
 function ticks(tSec: number, s: number) {
-  const g = tSec / 1.6; const i = Math.floor(g); const a = hash(i, s); const b = hash(i + 1, s);
+  const g = tSec / 3.4; const i = Math.floor(g); const a = hash(i, s); const b = hash(i + 1, s);
   return a + (b - a) * ease(g - i);
 }
 function wave(order: LiveOrder, tMs: number) {
   const s = seed(order.id) * Math.PI * 2;
   const t = tMs / 1000;
-  return (Math.sin(t / 6.1 + s) * 0.55 + Math.sin(t / 2.3 + s * 2) * 0.3 + Math.sin(t / 13.7 + s * 3) * 0.45) / 1.3 + ticks(t, s) * 0.22;
+  return (Math.sin(t / 14 + s) * 0.55 + Math.sin(t / 6 + s * 2) * 0.3 + Math.sin(t / 31 + s * 3) * 0.45) / 1.3 + ticks(t, s) * 0.16;
 }
 
 /**
@@ -30,10 +30,40 @@ function wave(order: LiveOrder, tMs: number) {
  * order and the clock, so every device shows the same value. With created_at it starts at exactly the stake.
  */
 export function pendingValue(order: LiveOrder, nowMs: number) {
-  const created = order.created_at ? Date.parse(order.created_at) : NaN;
-  const base = Number.isFinite(created) ? wave(order, created) : 0;
+  const fill = fillTime(order);
+  const base = Number.isFinite(fill) ? wave(order, fill) : 0;
+  const t = Number.isFinite(fill) ? Math.max(nowMs, fill) : nowMs;
   const amplitude = 0.04 + 0.12 * (order.multiplier - 1);
-  return clamp(order.amount * (1 + amplitude * (wave(order, nowMs) - base)), 0, order.amount * order.multiplier);
+  return clamp(order.amount * (1 + amplitude * (wave(order, t) - base)), 0, order.amount * order.multiplier);
+}
+
+/** Before a trade goes live it is "prepared" for 5 to 15 seconds. The length comes from the order id, so every device agrees. */
+export const PREP_MIN_MS = 5000;
+export const PREP_MAX_MS = 15000;
+export const prepDuration = (order: LiveOrder) => Math.round(PREP_MIN_MS + seed(order.id) * (PREP_MAX_MS - PREP_MIN_MS));
+/** The moment the trade goes live: placement time plus the preparation phase. NaN when the order has no timestamp. */
+export function fillTime(order: LiveOrder) {
+  const created = order.created_at ? Date.parse(order.created_at) : NaN;
+  return Number.isFinite(created) ? created + prepDuration(order) : NaN;
+}
+export function isPreparing(order: LiveOrder, nowMs: number) {
+  const fill = fillTime(order);
+  return order.status === 'pending' && Number.isFinite(fill) && nowMs < fill;
+}
+
+const PREP_LABELS = ['Searching coins', 'Checking volume', 'Checking market cap', 'Estimating', 'Calculating', 'Placing order'];
+/** What the "thinking" pill says at a given moment. Shorter waits skip a step or two; the last step is always placing the order. */
+export function prepLabel(order: LiveOrder, elapsedMs: number) {
+  const total = prepDuration(order);
+  const picks = total < 8000 ? [0, 1, 4, 5] : total < 11500 ? [0, 1, 2, 4, 5] : [0, 1, 2, 3, 4, 5];
+  const weights = picks.map((_, i) => (i === picks.length - 1 ? 1.5 : 1));
+  const sum = weights.reduce((a, b) => a + b, 0);
+  let end = 0;
+  for (let i = 0; i < picks.length; i++) {
+    end += (weights[i] as number / sum) * total;
+    if (elapsedMs < end) return PREP_LABELS[picks[i] as number] as string;
+  }
+  return PREP_LABELS[PREP_LABELS.length - 1] as string;
 }
 
 export function settleTarget(order: LiveOrder) {
@@ -91,7 +121,7 @@ export function settlingValue(order: LiveOrder, startedAtMs: number, nowMs: numb
   const target = settleTarget(order);
   const p = clamp((nowMs - startedAtMs) / settleDuration(order), 0, 1);
   if (p >= 1) return target;
-  const noise = ticks(nowMs / 1000, seed(order.id) * 7) * order.amount * 0.018 * Math.min(1, p * 10) * (1 - p);
+  const noise = ticks(nowMs / 1000, seed(order.id) * 7) * order.amount * 0.012 * Math.min(1, p * 10) * (1 - p);
   return clamp(start + (target - start) * routeLevel(route(order), p) + noise, 0, order.amount * order.multiplier);
 }
 
@@ -104,7 +134,7 @@ function clamp(v: number, lo: number, hi: number) { return Math.min(hi, Math.max
 function round2(v: number) { return Math.round(v * 100) / 100; }
 
 /** How long a finished trade keeps the live view (and the one-trade-at-a-time lock) open after settlement. */
-export const TRADE_LOCK_MS = 40_000;
+export const TRADE_LOCK_MS = 60_000;
 
 /** A trade is in progress while it is pending, or still playing out its result. Only one is allowed at a time. */
 export function hasActiveTrade(orders: { status: string; settled_at?: string | null }[], nowMs: number) {
