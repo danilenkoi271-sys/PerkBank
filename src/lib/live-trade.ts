@@ -3,8 +3,8 @@
 
 export type LiveOrder = { id: string; amount: number; multiplier: number; status: string; created_at?: string | null };
 
-export const SETTLE_SUCCESS_MS = 20000;
-export const SETTLE_FAIL_MS = 25000;
+export const SETTLE_SUCCESS_MS = 28000;
+export const SETTLE_FAIL_MS = 34000;
 
 function seed(id: string) {
   let h = 2166136261;
@@ -44,15 +44,50 @@ export function settleDuration(order: LiveOrder) {
   return order.status === 'success' ? SETTLE_SUCCESS_MS : SETTLE_FAIL_MS;
 }
 
-/** Glide from the value at the moment of settlement to the final outcome, with jitter that fades out. */
+function rng(n: number) {
+  let a = n >>> 0;
+  return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+type Leg = { t: number; level: number };
+/**
+ * A scripted route from the current value to the outcome, as fractions: level 0 is where the price was when the
+ * trade was settled and level 1 is the final result. It is made of surges, pauses and small pullbacks in an order
+ * that is different for every order, always finishing on a surge so the last move lands on the outcome.
+ */
+function route(order: LiveOrder): Leg[] {
+  const r = rng(Math.floor(seed(order.id) * 4294967295) ^ (order.status === 'success' ? 0x9e3779b9 : 0x85ebca6b));
+  const kinds = ['surge', 'surge', 'surge', 'range', 'range', 'dip', 'dip'];
+  for (let i = kinds.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [kinds[i], kinds[j]] = [kinds[j] as string, kinds[i] as string]; }
+  if (kinds[kinds.length - 1] !== 'surge') { const k = kinds.lastIndexOf('surge'); [kinds[k], kinds[kinds.length - 1]] = [kinds[kinds.length - 1] as string, kinds[k] as string]; }
+  const raw: { dt: number; dl: number }[] = kinds.map(kind => kind === 'surge' ? { dt: 0.9 + r() * 0.6, dl: 0.2 + r() * 0.14 } : kind === 'range' ? { dt: 1.2 + r() * 0.8, dl: (r() - 0.4) * 0.05 } : { dt: 0.6 + r() * 0.4, dl: -(0.07 + r() * 0.06) });
+  const totalT = raw.reduce((a, x) => a + x.dt, 0); const totalL = raw.reduce((a, x) => a + x.dl, 0);
+  const legs: Leg[] = [{ t: 0, level: 0 }]; let t = 0; let level = 0;
+  raw.forEach((x, i) => { t += x.dt / totalT; level += x.dl / totalL; legs.push({ t: i === raw.length - 1 ? 1 : t, level: i === raw.length - 1 ? 1 : Math.min(0.97, level) }); });
+  return legs;
+}
+
+function routeLevel(legs: Leg[], p: number) {
+  for (let i = 1; i < legs.length; i++) {
+    const a = legs[i - 1] as Leg; const b = legs[i] as Leg;
+    if (p <= b.t) {
+      const u = (p - a.t) / (b.t - a.t || 1);
+      const rising = b.level > a.level + 0.1; // surges move fast then settle; everything else moves gently
+      const e = rising ? 1 - Math.pow(1 - u, 2.4) : u * u * (3 - 2 * u);
+      return a.level + (b.level - a.level) * e;
+    }
+  }
+  return 1;
+}
+
+/** Moves from the value at the moment of settlement to the final outcome along a unique, natural-looking route. */
 export function settlingValue(order: LiveOrder, startedAtMs: number, nowMs: number) {
   const start = pendingValue(order, startedAtMs);
   const target = settleTarget(order);
   const p = clamp((nowMs - startedAtMs) / settleDuration(order), 0, 1);
   if (p >= 1) return target;
-  const eased = order.status === 'success' ? 1 - Math.pow(1 - p, 2.2) : p * p * (3 - 2 * p);
-  const jitter = Math.sin(nowMs / 420 + seed(order.id) * 9) * order.amount * 0.03 * (1 - p);
-  return clamp(start + (target - start) * eased + jitter, 0, order.amount * order.multiplier);
+  const noise = ticks(nowMs / 1000, seed(order.id) * 7) * order.amount * 0.018 * Math.min(1, p * 10) * (1 - p);
+  return clamp(start + (target - start) * routeLevel(route(order), p) + noise, 0, order.amount * order.multiplier);
 }
 
 export function liveChange(order: LiveOrder, value: number) {

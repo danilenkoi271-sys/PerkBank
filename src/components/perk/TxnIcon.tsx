@@ -43,8 +43,39 @@ export function resolveBrand(icon: string | null | undefined, title: string) {
   return Object.values(BRANDS).find((b) => b.match.test(title)) ?? null;
 }
 
-export function TxnIcon({ icon, title, category, incoming, className }: {
-  icon?: string | null; title: string; category: string; incoming?: boolean; className?: string;
+/** Trading stakes and payouts get their own marks, drawn in the same thin-line style as the live chart. */
+function TradeMark({ kind }: { kind: "stake" | "payout" }) {
+  const payout = kind === "payout";
+  return (
+    <svg viewBox="0 0 44 44" className="h-full w-full" aria-hidden="true">
+      <defs>
+        <linearGradient id={`tm-${kind}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={payout ? "#37d886" : "#2b3d6e"} />
+          <stop offset="1" stopColor={payout ? "#12794a" : "#0d111d"} />
+        </linearGradient>
+        <radialGradient id={`tg-${kind}`} cx="0.3" cy="0.2" r="0.9"><stop offset="0" stopColor="#fff" stopOpacity="0.28" /><stop offset="0.6" stopColor="#fff" stopOpacity="0" /></radialGradient>
+      </defs>
+      <rect width="44" height="44" fill={`url(#tm-${kind})`} />
+      <rect width="44" height="44" fill={`url(#tg-${kind})`} />
+      {payout ? (
+        <>
+          <polyline points="9,29 16,23 21,26 28,16 34,12" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="34" cy="12" r="2.6" fill="#fff" />
+          <circle cx="34" cy="12" r="5" fill="#fff" opacity="0.22" />
+        </>
+      ) : (
+        <>
+          <polyline points="9,25 15,20 20,26 26,17 30,22 35,15" fill="none" stroke="#7aa2ff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="35" cy="15" r="2.4" fill="#cfe0ff" />
+          <line x1="9" y1="32" x2="35" y2="32" stroke="#7aa2ff" strokeOpacity="0.35" strokeWidth="1" strokeDasharray="2 3" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+export function TxnIcon({ icon, title, category, incoming, className, dark = false }: {
+  icon?: string | null; title: string; category: string; incoming?: boolean; className?: string; dark?: boolean;
 }) {
   const base = cn("flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full", className);
   if (icon && (icon.startsWith("data:image/") || icon.startsWith("https://"))) {
@@ -52,10 +83,12 @@ export function TxnIcon({ icon, title, category, incoming, className }: {
   }
   const brand = resolveBrand(icon, title);
   if (brand) return <span className={base}>{brand.render()}</span>;
-  const cat = getCategory(icon?.startsWith("cat:") ? icon.slice(4) : category);
+  const id = icon?.startsWith("cat:") ? icon.slice(4) : category;
+  if (id === "investment" || id === "investment_payout") return <span className={base}><TradeMark kind={id === "investment" ? "stake" : "payout"} /></span>;
+  const cat = getCategory(id);
   const Icon = cat.icon;
   return (
-    <span className={cn(base, incoming ? "bg-sky text-primary-foreground" : "bg-muted text-card-foreground")}>
+    <span className={cn(base, incoming ? "bg-sky text-primary-foreground" : dark ? "bg-white/10 text-bone" : "bg-muted text-card-foreground")}>
       <Icon className="h-[45%] w-[45%]" />
     </span>
   );

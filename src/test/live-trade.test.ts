@@ -38,3 +38,37 @@ describe('live investment chart values', () => {
     expect(Math.max(...v)).toBeLessThanOrEqual(270);
   });
 });
+
+describe('settlement routes', () => {
+  const base = { amount: 100, multiplier: 2, created_at: '2026-11-10T21:00:00.000Z' };
+  const series = (o: { id: string; amount: number; multiplier: number; status: string; created_at: string }, ms: number) => {
+    const start = Date.parse(o.created_at) + 90_000;
+    return Array.from({ length: 401 }, (_, i) => settlingValue(o, start, start + (i / 400) * ms));
+  };
+  it('a win surges, pauses and pulls back before landing exactly on the payout', () => {
+    const v = series({ ...base, id: 'win-1', status: 'success' }, SETTLE_SUCCESS_MS);
+    expect(v[400]).toBe(200);
+    expect(Math.max(...v)).toBeLessThanOrEqual(200);
+    let peak = 0; let pullback = 0;
+    for (const x of v) { peak = Math.max(peak, x); pullback = Math.max(pullback, peak - x); }
+    expect(pullback).toBeGreaterThan(1);
+  });
+  it('a loss bounces on the way down and lands exactly on zero', () => {
+    const v = series({ ...base, id: 'loss-1', status: 'failed' }, SETTLE_FAIL_MS);
+    expect(v[400]).toBe(0);
+    expect(Math.min(...v)).toBeGreaterThanOrEqual(0);
+    let low = Infinity; let bounce = 0;
+    for (const x of v) { low = Math.min(low, x); bounce = Math.max(bounce, x - low); }
+    expect(bounce).toBeGreaterThan(1);
+  });
+  it('every order takes a different route', () => {
+    const a = series({ ...base, id: 'order-a', status: 'success' }, SETTLE_SUCCESS_MS);
+    const b = series({ ...base, id: 'order-b', status: 'success' }, SETTLE_SUCCESS_MS);
+    const gap = [100, 200, 300].map(i => Math.abs((a[i] as number) - (b[i] as number)));
+    expect(Math.max(...gap)).toBeGreaterThan(2);
+  });
+  it('the same order takes the same route on every device', () => {
+    const o = { ...base, id: 'same', status: 'success' };
+    expect(series(o, SETTLE_SUCCESS_MS)).toEqual(series({ ...o }, SETTLE_SUCCESS_MS));
+  });
+});
