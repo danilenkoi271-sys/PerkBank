@@ -42,7 +42,7 @@ export const getAccountData = createServerFn({method:'GET'}).middleware([require
  if(tx.error || orders.error) throw new Error('Activity unavailable');
  const { resolveProfilePhoto } = await import('./profile-photo.server');
  profile.avatar_url = await resolveProfilePhoto(profile.avatar_url, context.supabase.storage);
- return {status:'ready' as const,profile,account:{id:account.id,balance:Number(account.balance)},txns:tx.data.map(t=>({...t,amount:Number(t.amount)})),orders:orders.data.map(o=>({...o,amount:Number(o.amount),multiplier:Number(o.multiplier),payout:Number(o.payout)})),isAdmin:Boolean(role.data && isAdminIdentity(user.data.user?.email,user.data.user?.app_metadata['providers'],Boolean(user.data.user?.email_confirmed_at)))};
+ return {status:'ready' as const,serverNow:Date.now(),profile,account:{id:account.id,balance:Number(account.balance)},txns:tx.data.map(t=>({...t,amount:Number(t.amount)})),orders:orders.data.map(o=>({...o,amount:Number(o.amount),multiplier:Number(o.multiplier),payout:Number(o.payout)})),isAdmin:Boolean(role.data && isAdminIdentity(user.data.user?.email,user.data.user?.app_metadata['providers'],Boolean(user.data.user?.email_confirmed_at)))};
 });
 export const lookupRecipient = createServerFn({method:'POST'}).middleware([requireSupabaseAuth]).inputValidator(d=>z.object({iban:ibanSchema}).parse(d)).handler(async({data,context})=>{
  await requireUnlocked(context.userId);

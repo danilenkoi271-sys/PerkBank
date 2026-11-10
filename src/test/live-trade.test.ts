@@ -20,3 +20,21 @@ describe('live investment values', () => {
     expect(settlingValue(lost, 0, SETTLE_FAIL_MS / 2)).toBeGreaterThan(0);
   });
 });
+
+describe('live investment chart values', () => {
+  const placed = { ...order, id: 'order-xyz', amount: 150, multiplier: 1.8, created_at: '2026-11-10T21:00:00.000Z' };
+  const t0 = Date.parse(placed.created_at);
+  it('starts exactly at the stake so PNL begins at zero', () => {
+    expect(pendingValue(placed, t0)).toBeCloseTo(150, 6);
+  });
+  it('is identical for the same order and time, whichever device computes it', () => {
+    expect(pendingValue({ ...placed }, t0 + 73_500)).toBe(pendingValue({ ...placed }, t0 + 73_500));
+  });
+  it('wanders both up and down and never leaves 0..payout', () => {
+    const v = Array.from({ length: 600 }, (_, i) => pendingValue(placed, t0 + i * 1000));
+    expect(Math.max(...v)).toBeGreaterThan(150);
+    expect(Math.min(...v)).toBeLessThan(150);
+    expect(Math.min(...v)).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...v)).toBeLessThanOrEqual(270);
+  });
+});

@@ -291,22 +291,6 @@
 .action-bone { background: var(--bone); color: var(--ink); }
 .action-bone:hover { background: #fff; }
 
-/* Transaction rows (flat list on the dashboard) */
-.bank-activity-list > div { display: flex; flex-direction: column; }
-.bank-activity-list > div > div { padding: 14px 8px; border-radius: 16px; border-top: 0 !important; transition: background .2s; }
-.bank-activity-list > div > div + div { box-shadow: inset 0 1px 0 var(--border); }
-.bank-activity-list > div > div:hover { background: var(--bone); box-shadow: none; }
-.bank-activity-list > div > div:hover + div { box-shadow: none; }
-.bank-activity-list .text-foreground\/65 { color: var(--muted-foreground); }
-.bank-activity-list > p { padding: 48px 0; color: var(--muted-foreground); }
-.bank-processing { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
-.bank-processing-row { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 18px; background: var(--bone); color: var(--ink); }
-.live-arrow { flex-shrink: 0; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background .3s, color .3s; position: relative; }
-.live-arrow svg { width: 16px; height: 16px; }
-.live-up { background: color-mix(in oklch, var(--success) 14%, transparent); color: var(--success); }
-.live-down { background: color-mix(in oklch, var(--destructive) 12%, transparent); color: var(--destructive); }
-.live-up-text { color: var(--success); }
-.live-down-text { color: var(--destructive); }
 
 /* Bottom navigation */
 .bank-navigation { position: fixed; z-index: 40; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); width: min(440px, calc(100% - 24px)); padding: 6px; background: rgb(11 12 14 / .92); backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5); color: rgb(243 242 238 / .55); border-radius: 999px; box-shadow: 0 20px 40px -20px rgb(11 12 14 / .6), inset 0 0 0 1px rgb(255 255 255 / .06); }
