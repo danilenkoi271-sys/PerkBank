@@ -16,6 +16,7 @@ import { ProfilePhoto } from '@/components/perk/ProfilePhoto';
 import { AccountNavigation, type AccountView } from '@/components/perk/AccountNavigation';
 import { AppError, AppLoading, ViewTransition } from '@/components/perk/AppShell';
 import { EASE } from '@/components/perk/motion';
+import { useGlideHold } from '@/components/perk/useGlideHold';
 import { getAccountData, lockAccount } from '@/lib/account.functions';
 import type { Txn } from '@/lib/bank';
 
@@ -40,7 +41,6 @@ function AccountPage() {
   if (data.status === 'locked') return <UnlockFlow open onClose={() => void navigate({ to: '/' })} onUnlocked={refresh}/>;
   const { account, profile, txns, orders, isAdmin } = data;
   const first = profile.full_name.split(' ')[0] ?? profile.full_name;
-  const shown = filter === 'all' ? txns : txns.filter(t => filter === 'in' ? t.amount > 0 : t.amount < 0);
 
   return <div className="bank-page">
     <motion.header className="bank-header" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
@@ -57,18 +57,7 @@ function AccountPage() {
         {view === 'home' ? <ViewTransition id="home" className="home-grid">
           <BalanceCard balance={account.balance} firstName={first} iban={profile.iban ?? ''} orders={orders} clockOffset={offsetRef.current ?? 0}/>
 
-          <section className="panel-ink txn-panel p-3 sm:p-4" aria-label="Transactions">
-            <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-5 pt-3">
-              <h2 className="text-xl font-medium">Transactions</h2>
-              <div role="tablist" aria-label="Filter transactions" className="relative flex rounded-full bg-white/[0.07] p-1">
-                {(['all', 'in', 'out'] as const).map(f => <button key={f} type="button" role="tab" aria-selected={filter === f} onClick={() => setFilter(f)} className={`relative z-10 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ${filter === f ? 'text-ink' : 'text-bone/55 hover:text-bone'}`}>
-                  {filter === f && <motion.span layoutId="txn-filter" className="absolute inset-0 -z-10 rounded-full bg-bone" transition={{ type: 'spring', stiffness: 420, damping: 36 }}/>}
-                  {f === 'all' ? 'All' : f === 'in' ? 'In' : 'Out'}
-                </button>)}
-              </div>
-            </div>
-            <div className="pb-1">{shown.length ? <TransactionList key={filter} txns={shown} onSelect={setSelected} flat/> : <p className="py-12 text-center text-sm text-bone/50">Nothing here yet.</p>}</div>
-          </section>
+          <TransactionsPanel txns={txns} orders={orders} clockOffset={offsetRef.current ?? 0} filter={filter} setFilter={setFilter} onSelect={setSelected}/>
         </ViewTransition>
         : view === 'invest' ? <ViewTransition id="invest"><Invest balance={account.balance} orders={orders} clockOffset={offsetRef.current ?? 0} onPlaced={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/></ViewTransition>
         : view === 'leaderboard' ? <ViewTransition id="leaderboard"><Leaderboard/></ViewTransition>
@@ -89,5 +78,25 @@ function Perks() {
     <span className="mono-label mt-10 text-bone/50">Rewards & bonuses</span>
     <h1 className="mt-3 text-5xl font-medium">Perks</h1>
     <p className="mt-3 text-bone/60">Temporarily unavailable</p>
+  </section>;
+}
+
+type Filter = 'all' | 'in' | 'out';
+function TransactionsPanel({ txns, orders, clockOffset, filter, setFilter, onSelect }: { txns: (Txn & { order_id?: string | null })[]; orders: Parameters<typeof useGlideHold>[0]; clockOffset: number; filter: Filter; setFilter: (f: Filter) => void; onSelect: (t: Txn) => void }) {
+  // The payout of a trade that is still playing out stays out of the list until its chart has finished.
+  const { hiddenOrderIds } = useGlideHold(orders, clockOffset);
+  const visible = txns.filter(t => !(t.category === 'investment_payout' && t.order_id && hiddenOrderIds.has(t.order_id)));
+  const shown = filter === 'all' ? visible : visible.filter(t => filter === 'in' ? t.amount > 0 : t.amount < 0);
+  return <section className="panel-ink txn-panel p-3 sm:p-4" aria-label="Transactions">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-5 pt-3">
+      <h2 className="text-xl font-medium">Transactions</h2>
+      <div role="tablist" aria-label="Filter transactions" className="relative flex rounded-full bg-white/[0.07] p-1">
+        {(['all', 'in', 'out'] as const).map(f => <button key={f} type="button" role="tab" aria-selected={filter === f} onClick={() => setFilter(f)} className={`relative z-10 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ${filter === f ? 'text-ink' : 'text-bone/55 hover:text-bone'}`}>
+          {filter === f && <motion.span layoutId="txn-filter" className="absolute inset-0 -z-10 rounded-full bg-bone" transition={{ type: 'spring', stiffness: 420, damping: 36 }}/>}
+          {f === 'all' ? 'All' : f === 'in' ? 'In' : 'Out'}
+        </button>)}
+      </div>
+    </div>
+    <div className="pb-1">{shown.length ? <TransactionList key={filter} txns={shown} onSelect={onSelect} flat/> : <p className="py-12 text-center text-sm text-bone/50">Nothing here yet.</p>}</div>
   </section>;
 }

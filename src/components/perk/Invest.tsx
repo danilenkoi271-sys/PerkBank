@@ -9,11 +9,14 @@ import { FaceId } from '@/components/perk/FaceId';
 import { placeTrade } from '@/lib/investing.functions';
 import { formatMoney } from '@/lib/categories';
 import { hasActiveTrade } from '@/lib/live-trade';
+import { useGlideHold } from './useGlideHold';
 import { perkFeedback } from './PerkFeedback';
 
 type OrderState = { status: string; settled_at?: string | null };
 const NO_ORDERS: OrderState[] = [];
-export function Invest({ balance, onPlaced, orders = NO_ORDERS, clockOffset = 0 }: { balance: number; onPlaced: () => void; orders?: OrderState[]; clockOffset?: number }) {
+export function Invest({ balance: rawBalance, onPlaced, orders = NO_ORDERS, clockOffset = 0 }: { balance: number; onPlaced: () => void; orders?: (OrderState & { id?: string; amount?: number; multiplier?: number; payout?: number })[]; clockOffset?: number }) {
+  const { heldPayout } = useGlideHold(orders, clockOffset);
+  const balance = rawBalance - heldPayout; // winnings stay hidden until their chart has finished
   // One trade at a time: locked while a trade is pending or still playing out its result.
   const [now, setNow] = useState(() => Date.now() + clockOffset);
   const locked = hasActiveTrade(orders, now);

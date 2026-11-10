@@ -3,8 +3,8 @@
 
 export type LiveOrder = { id: string; amount: number; multiplier: number; status: string; created_at?: string | null };
 
-export const SETTLE_SUCCESS_MS = 40000;
-export const SETTLE_FAIL_MS = 48000;
+export const SETTLE_SUCCESS_MS = 55000;
+export const SETTLE_FAIL_MS = 65000;
 
 function seed(id: string) {
   let h = 2166136261;
@@ -16,13 +16,32 @@ function hash(i: number, s: number) { const x = Math.sin(i * 127.1 + s * 311.7) 
 const ease = (f: number) => { const s = f * f * (3 - 2 * f); return s * s * (3 - 2 * s); };
 /** Value noise that rests on a level for a moment, then moves: gives the line its small stalls and ticks. */
 function ticks(tSec: number, s: number) {
-  const g = tSec / 3.4; const i = Math.floor(g); const a = hash(i, s); const b = hash(i + 1, s);
+  const g = tSec / 6; const i = Math.floor(g); const a = hash(i, s); const b = hash(i + 1, s);
   return a + (b - a) * ease(g - i);
+}
+// Now and then the price simply holds still for a few seconds. Time is "paused" during those stalls, so the wander
+// resumes exactly where it stopped. Stalls are seeded per order and counted from the moment the trade goes live.
+const STALL_PERIOD_MS = 22_000;
+const stallCache = new Map<string, number[]>();
+function stallPeriod(order: LiveOrder, k: number) {
+  const r = rng((Math.floor(seed(order.id) * 4294967295) ^ Math.imul(k + 1, 0x9e3779b1)) >>> 0);
+  const len = r() < 0.45 ? 3000 + r() * 7000 : 0;
+  return { start: r() * (STALL_PERIOD_MS - len), len };
+}
+function stalledBefore(order: LiveOrder, relMs: number) {
+  if (relMs <= 0) return 0;
+  const k = Math.floor(relMs / STALL_PERIOD_MS);
+  let prefix = stallCache.get(order.id);
+  if (!prefix) { prefix = [0]; stallCache.set(order.id, prefix); if (stallCache.size > 50) stallCache.delete(stallCache.keys().next().value as string); }
+  while (prefix.length <= k) prefix.push((prefix[prefix.length - 1] as number) + stallPeriod(order, prefix.length - 1).len);
+  const { start, len } = stallPeriod(order, k);
+  return (prefix[k] as number) + clamp(relMs - k * STALL_PERIOD_MS - start, 0, len);
 }
 function wave(order: LiveOrder, tMs: number) {
   const s = seed(order.id) * Math.PI * 2;
-  const t = tMs / 1000;
-  return (Math.sin(t / 14 + s) * 0.55 + Math.sin(t / 6 + s * 2) * 0.3 + Math.sin(t / 31 + s * 3) * 0.45) / 1.3 + ticks(t, s) * 0.16;
+  const fill = fillTime(order);
+  const t = (Number.isFinite(fill) ? tMs - stalledBefore(order, tMs - fill) : tMs) / 1000;
+  return (Math.sin(t / 24 + s) * 0.55 + Math.sin(t / 10 + s * 2) * 0.3 + Math.sin(t / 52 + s * 3) * 0.45) / 1.3 + ticks(t, s) * 0.12;
 }
 
 /**
@@ -37,9 +56,9 @@ export function pendingValue(order: LiveOrder, nowMs: number) {
   return clamp(order.amount * (1 + amplitude * (wave(order, t) - base)), 0, order.amount * order.multiplier);
 }
 
-/** Before a trade goes live it is "prepared" for 5 to 15 seconds. The length comes from the order id, so every device agrees. */
-export const PREP_MIN_MS = 5000;
-export const PREP_MAX_MS = 15000;
+/** Before a trade goes live it is "prepared" for 10 to 30 seconds. The length comes from the order id, so every device agrees. */
+export const PREP_MIN_MS = 10_000;
+export const PREP_MAX_MS = 30_000;
 export const prepDuration = (order: LiveOrder) => Math.round(PREP_MIN_MS + seed(order.id) * (PREP_MAX_MS - PREP_MIN_MS));
 /** The moment the trade goes live: placement time plus the preparation phase. NaN when the order has no timestamp. */
 export function fillTime(order: LiveOrder) {
@@ -51,19 +70,35 @@ export function isPreparing(order: LiveOrder, nowMs: number) {
   return order.status === 'pending' && Number.isFinite(fill) && nowMs < fill;
 }
 
-const PREP_LABELS = ['Searching coins', 'Checking volume', 'Checking market cap', 'Estimating', 'Calculating', 'Placing order'];
-/** What the "thinking" pill says at a given moment. Shorter waits skip a step or two; the last step is always placing the order. */
-export function prepLabel(order: LiveOrder, elapsedMs: number) {
+const PREP_STEPS = [
+  { work: 'Searching coins', done: 'Coin found' },
+  { work: 'Checking volume', done: 'Volume confirmed' },
+  { work: 'Checking market cap', done: 'Market cap checked' },
+  { work: 'Estimating', done: 'Estimate ready' },
+  { work: 'Calculating', done: 'Calculations done' },
+  { work: 'Placing order', done: 'Order placed' },
+];
+/**
+ * What the "thinking" pill shows at a given moment: each step works for a while, then briefly confirms it is done
+ * before the next one starts. Shorter waits skip a step or two; the last step is always placing the order.
+ */
+export function prepStage(order: LiveOrder, elapsedMs: number): { label: string; done: boolean } {
   const total = prepDuration(order);
-  const picks = total < 8000 ? [0, 1, 4, 5] : total < 11500 ? [0, 1, 2, 4, 5] : [0, 1, 2, 3, 4, 5];
+  const picks = total < 13_000 ? [0, 1, 4, 5] : total < 19_000 ? [0, 1, 2, 4, 5] : [0, 1, 2, 3, 4, 5];
   const weights = picks.map((_, i) => (i === picks.length - 1 ? 1.5 : 1));
   const sum = weights.reduce((a, b) => a + b, 0);
-  let end = 0;
+  let start = 0;
   for (let i = 0; i < picks.length; i++) {
-    end += (weights[i] as number / sum) * total;
-    if (elapsedMs < end) return PREP_LABELS[picks[i] as number] as string;
+    const slot = ((weights[i] as number) / sum) * total;
+    const end = start + slot;
+    if (elapsedMs < end) {
+      const step = PREP_STEPS[picks[i] as number] as { work: string; done: string };
+      const doneFor = Math.min(slot * 0.5, Math.max(700, Math.min(1500, slot * 0.28)));
+      return elapsedMs >= end - doneFor ? { label: step.done, done: true } : { label: step.work, done: false };
+    }
+    start = end;
   }
-  return PREP_LABELS[PREP_LABELS.length - 1] as string;
+  return { label: (PREP_STEPS[5] as { done: string }).done, done: true };
 }
 
 export function settleTarget(order: LiveOrder) {
@@ -115,14 +150,23 @@ function routeLevel(legs: Leg[], p: number) {
   return 1;
 }
 
+/** Progress through the final move with a couple of pauses in it; the pauses are seeded per order. */
+function glideProgress(order: LiveOrder, p: number) {
+  const r = rng((Math.floor(seed(order.id) * 4294967295) ^ 0x51ed270b) >>> 0);
+  const a1 = 0.18 + r() * 0.2; const l1 = 0.04 + r() * 0.05;
+  const a2 = 0.55 + r() * 0.2; const l2 = 0.04 + r() * 0.05;
+  return (p - clamp(p - a1, 0, l1) - clamp(p - a2, 0, l2)) / (1 - l1 - l2);
+}
+
 /** Moves from the value at the moment of settlement to the final outcome along a unique, natural-looking route. */
 export function settlingValue(order: LiveOrder, startedAtMs: number, nowMs: number) {
   const start = pendingValue(order, startedAtMs);
   const target = settleTarget(order);
   const p = clamp((nowMs - startedAtMs) / settleDuration(order), 0, 1);
   if (p >= 1) return target;
-  const noise = ticks(nowMs / 1000, seed(order.id) * 7) * order.amount * 0.012 * Math.min(1, p * 10) * (1 - p);
-  return clamp(start + (target - start) * routeLevel(route(order), p) + noise, 0, order.amount * order.multiplier);
+  const pe = glideProgress(order, p); // frozen while the price pauses
+  const noise = ticks((startedAtMs + pe * settleDuration(order)) / 1000, seed(order.id) * 7) * order.amount * 0.01 * Math.min(1, pe * 10) * (1 - pe);
+  return clamp(start + (target - start) * routeLevel(route(order), pe) + noise, 0, order.amount * order.multiplier);
 }
 
 export function liveChange(order: LiveOrder, value: number) {
@@ -134,7 +178,7 @@ function clamp(v: number, lo: number, hi: number) { return Math.min(hi, Math.max
 function round2(v: number) { return Math.round(v * 100) / 100; }
 
 /** How long a finished trade keeps the live view (and the one-trade-at-a-time lock) open after settlement. */
-export const TRADE_LOCK_MS = 60_000;
+export const TRADE_LOCK_MS = 80_000;
 
 /** A trade is in progress while it is pending, or still playing out its result. Only one is allowed at a time. */
 export function hasActiveTrade(orders: { status: string; settled_at?: string | null }[], nowMs: number) {

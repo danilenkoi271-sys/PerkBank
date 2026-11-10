@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { motion } from 'motion/react';
 import { AppError, AppLoading, PageHeading, ViewTransition } from '@/components/perk/AppShell';
 import { EASE } from '@/components/perk/motion';
+import { useGlideHold } from '@/components/perk/useGlideHold';
 import { PerkLogo } from '@/components/perk/PerkCard';
 import { AccountNavigation } from '@/components/perk/AccountNavigation';
 import { SendMoney } from '@/components/perk/SendMoney';
@@ -28,9 +29,18 @@ function SendPage() {
   return <div className="bank-page">
     <motion.header className="bank-header" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}><Link to="/" aria-label="Perk home"><PerkLogo className="text-[30px]"/></Link><Button asChild variant="ghost" className="h-10 rounded-full px-4 text-ink hover:bg-ink/5"><Link to="/account" search={{ view: 'home' }}><ArrowLeft className="h-4 w-4"/>Account</Link></Button></motion.header>
     <main className="bank-main"><ViewTransition id="send" className="mx-auto max-w-[620px]">
-      <PageHeading eyebrow="Payments" title="Send" accent="money."><p className="mt-4 text-[15px] text-muted-foreground">Available balance <span className="ml-1 font-medium text-ink tabular-nums">{formatMoney(data.account.balance)}</span></p></PageHeading>
-      <SendMoney balance={data.account.balance} onSent={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/>
+      <SendBody balance={data.account.balance} orders={data.orders} onSent={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/>
     </ViewTransition></main>
     <AccountNavigation active="send"/>
   </div>;
+}
+
+/** The send form, showing the balance without a win whose chart is still playing out. */
+function SendBody({ balance: rawBalance, orders, onSent }: { balance: number; orders: Parameters<typeof useGlideHold>[0]; onSent: () => void }) {
+  const { heldPayout } = useGlideHold(orders);
+  const balance = rawBalance - heldPayout;
+  return <>
+    <PageHeading eyebrow="Payments" title="Send" accent="money."><p className="mt-4 text-[15px] text-muted-foreground">Available balance <span className="ml-1 font-medium text-ink tabular-nums">{formatMoney(balance)}</span></p></PageHeading>
+    <SendMoney balance={balance} onSent={onSent}/>
+  </>;
 }

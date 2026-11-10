@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fillTime, hasActiveTrade, isPreparing, pendingValue, prepDuration, prepLabel, settlingValue, SETTLE_FAIL_MS, SETTLE_SUCCESS_MS, TRADE_LOCK_MS } from '@/lib/live-trade';
+import { fillTime, hasActiveTrade, isPreparing, pendingValue, prepDuration, prepStage, settlingValue, SETTLE_FAIL_MS, SETTLE_SUCCESS_MS, TRADE_LOCK_MS } from '@/lib/live-trade';
 
 const order = { id: 'abc-123', amount: 100, multiplier: 2, status: 'pending' };
 
@@ -91,10 +91,10 @@ describe('one trade at a time', () => {
 
 describe('trade preparation', () => {
   const placed = (id: string) => ({ id, amount: 100, multiplier: 2, status: 'pending', created_at: '2026-11-10T21:00:00.000Z' });
-  it('takes between 5 and 15 seconds, varies per trade, and is the same on every device', () => {
+  it('takes between 10 and 30 seconds, varies per trade, and is the same on every device', () => {
     const d = Array.from({ length: 200 }, (_, i) => prepDuration(placed(`trade-${i}`)));
-    expect(Math.min(...d)).toBeGreaterThanOrEqual(5000);
-    expect(Math.max(...d)).toBeLessThanOrEqual(15000);
+    expect(Math.min(...d)).toBeGreaterThanOrEqual(10000);
+    expect(Math.max(...d)).toBeLessThanOrEqual(30000);
     expect(new Set(d).size).toBeGreaterThan(100);
     expect(prepDuration(placed('same'))).toBe(prepDuration({ ...placed('same') }));
   });
@@ -104,20 +104,43 @@ describe('trade preparation', () => {
     expect(isPreparing(o, fill)).toBe(false);
     expect(isPreparing({ ...o, status: 'success' }, fill - 1)).toBe(false);
   });
-  it('shows sensible steps in order and always finishes on placing the order', () => {
-    for (const id of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
+  it('works through each step, confirms it, and always finishes on placing the order', () => {
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
       const o = placed(id); const total = prepDuration(o);
-      const seen: string[] = [];
-      for (let t = 0; t < total; t += 50) { const l = prepLabel(o, t); if (seen[seen.length - 1] !== l) seen.push(l); }
+      const seen: string[] = []; let confirmed = 0; let wasDone = false;
+      for (let t = 0; t < total; t += 50) {
+        const s = prepStage(o, t); if (seen[seen.length - 1] !== s.label) seen.push(s.label);
+        if (s.done && !wasDone) confirmed++; wasDone = s.done;
+      }
       expect(seen[0]).toBe('Searching coins');
-      expect(seen[seen.length - 1]).toBe('Placing order');
+      expect(seen[1]).toBe('Coin found');
+      expect(seen[seen.length - 1]).toBe('Order placed');
       expect(new Set(seen).size).toBe(seen.length);
-      expect(seen.length).toBeGreaterThanOrEqual(4);
+      expect(confirmed).toBe(seen.length / 2); // every step ends with a confirmation
     }
   });
   it('the live price starts at the stake exactly when the trade goes live', () => {
     const o = placed('start-check');
     expect(pendingValue(o, fillTime(o))).toBeCloseTo(100, 6);
     expect(pendingValue(o, fillTime(o) - 4000)).toBeCloseTo(100, 6);
+  });
+});
+
+describe('stalls', () => {
+  const o = { id: 'stall-test', amount: 100, multiplier: 2, status: 'pending', created_at: '2026-11-10T21:00:00.000Z' };
+  const fill = fillTime(o);
+  const longestRun = (v: number[]) => { let best = 0, run = 0; for (let i = 1; i < v.length; i++) { run = Math.abs((v[i] as number) - (v[i - 1] as number)) < 1e-9 ? run + 1 : 0; best = Math.max(best, run); } return best; };
+  it('the pending price sometimes holds completely still for several seconds, but not all the time', () => {
+    const v = Array.from({ length: 2400 }, (_, i) => pendingValue(o, fill + i * 250)); // 10 minutes
+    expect(longestRun(v)).toBeGreaterThanOrEqual(12); // 3 seconds
+    expect(longestRun(v)).toBeLessThan(60);
+    expect(new Set(v.map(x => x.toFixed(2))).size).toBeGreaterThan(100);
+  });
+  it('the final move also pauses, and still lands exactly on the result', () => {
+    const win = { ...o, status: 'success' };
+    const start = fill + 60_000;
+    const v = Array.from({ length: 221 }, (_, i) => settlingValue(win, start, start + (i / 220) * SETTLE_SUCCESS_MS));
+    expect(longestRun(v)).toBeGreaterThanOrEqual(6);
+    expect(v[220]).toBe(200);
   });
 });
