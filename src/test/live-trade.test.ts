@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pendingValue, settlingValue, SETTLE_FAIL_MS, SETTLE_SUCCESS_MS } from '@/lib/live-trade';
+import { hasActiveTrade, pendingValue, settlingValue, SETTLE_FAIL_MS, SETTLE_SUCCESS_MS, TRADE_LOCK_MS } from '@/lib/live-trade';
 
 const order = { id: 'abc-123', amount: 100, multiplier: 2, status: 'pending' };
 
@@ -70,5 +70,21 @@ describe('settlement routes', () => {
   it('the same order takes the same route on every device', () => {
     const o = { ...base, id: 'same', status: 'success' };
     expect(series(o, SETTLE_SUCCESS_MS)).toEqual(series({ ...o }, SETTLE_SUCCESS_MS));
+  });
+});
+
+describe('one trade at a time', () => {
+  const now = Date.parse('2026-11-10T22:00:00.000Z');
+  it('is locked while a trade is pending', () => {
+    expect(hasActiveTrade([{ status: 'pending', settled_at: null }], now)).toBe(true);
+  });
+  it('stays locked while a settled trade is still playing out, then frees up', () => {
+    const settled = { status: 'success', settled_at: new Date(now - 20_000).toISOString() };
+    expect(hasActiveTrade([settled], now)).toBe(true);
+    expect(hasActiveTrade([settled], now + TRADE_LOCK_MS)).toBe(false);
+  });
+  it('is free with no orders or only old ones', () => {
+    expect(hasActiveTrade([], now)).toBe(false);
+    expect(hasActiveTrade([{ status: 'failed', settled_at: new Date(now - 3_600_000).toISOString() }], now)).toBe(false);
   });
 });

@@ -70,7 +70,7 @@ function AccountPage() {
             <div className="pb-1">{shown.length ? <TransactionList key={filter} txns={shown} onSelect={setSelected} flat/> : <p className="py-12 text-center text-sm text-bone/50">Nothing here yet.</p>}</div>
           </section>
         </ViewTransition>
-        : view === 'invest' ? <ViewTransition id="invest"><Invest balance={account.balance} onPlaced={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/></ViewTransition>
+        : view === 'invest' ? <ViewTransition id="invest"><Invest balance={account.balance} orders={orders} clockOffset={offsetRef.current ?? 0} onPlaced={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/></ViewTransition>
         : view === 'leaderboard' ? <ViewTransition id="leaderboard"><Leaderboard/></ViewTransition>
         : <ViewTransition id="perks"><Perks/></ViewTransition>}
       </AnimatePresence>

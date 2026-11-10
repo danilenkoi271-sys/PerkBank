@@ -55,7 +55,12 @@ type Leg = { t: number; level: number };
  * trade was settled and level 1 is the final result. It is made of surges, pauses and small pullbacks in an order
  * that is different for every order, always finishing on a surge so the last move lands on the outcome.
  */
+const routes = new Map<string, Leg[]>();
 function route(order: LiveOrder): Leg[] {
+  const key = `${order.id}:${order.status}`; const hit = routes.get(key); if (hit) return hit;
+  const legs = buildRoute(order); routes.set(key, legs); if (routes.size > 50) routes.delete(routes.keys().next().value as string); return legs;
+}
+function buildRoute(order: LiveOrder): Leg[] {
   const r = rng(Math.floor(seed(order.id) * 4294967295) ^ (order.status === 'success' ? 0x9e3779b9 : 0x85ebca6b));
   const kinds = ['surge', 'surge', 'surge', 'range', 'range', 'dip', 'dip'];
   for (let i = kinds.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [kinds[i], kinds[j]] = [kinds[j] as string, kinds[i] as string]; }
@@ -97,3 +102,15 @@ export function liveChange(order: LiveOrder, value: number) {
 
 function clamp(v: number, lo: number, hi: number) { return Math.min(hi, Math.max(lo, v)); }
 function round2(v: number) { return Math.round(v * 100) / 100; }
+
+/** How long a finished trade keeps the live view (and the one-trade-at-a-time lock) open after settlement. */
+export const TRADE_LOCK_MS = 40_000;
+
+/** A trade is in progress while it is pending, or still playing out its result. Only one is allowed at a time. */
+export function hasActiveTrade(orders: { status: string; settled_at?: string | null }[], nowMs: number) {
+  return orders.some(o => {
+    if (o.status === 'pending') return true;
+    const at = o.settled_at ? Date.parse(o.settled_at) : NaN;
+    return Number.isFinite(at) && nowMs - at < TRADE_LOCK_MS;
+  });
+}

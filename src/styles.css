@@ -363,8 +363,8 @@
   @media (min-width: 640px) { .morph { padding: 36px; } }
 
   /* Header zone: four absolutely placed pieces that slide between two layouts. */
-  .morph-head { --fig: clamp(40px, 15cqw, 84px); position: relative; height: calc(88px + var(--fig) + 14px + 34px); transition: height .9s var(--ease-out-expo) 0s; }
-  .morph-head > * { position: absolute; margin: 0; transition-property: top, left, transform, font-size, opacity; transition-duration: .9s; transition-timing-function: var(--ease-out-expo); transition-delay: .1s; }
+  .morph-head { --fig: clamp(40px, 15cqw, 84px); position: relative; height: calc(88px + var(--fig) + 14px + 34px); transition: height 1.8s var(--ease-out-expo) 0s; }
+  .morph-head > * { position: absolute; margin: 0; transition-property: top, left, transform, font-size, opacity; transition-duration: 1.8s; transition-timing-function: var(--ease-out-expo); transition-delay: .2s; }
   .morph-greet { top: 0; left: 0; white-space: nowrap; font-size: 15px; line-height: 22px; }
   .morph-label { top: 62px; left: 0; }
   .morph-figure { top: 88px; left: 0; white-space: nowrap; font-size: var(--fig); line-height: .95; font-weight: 500; letter-spacing: -0.055em; font-variant-numeric: tabular-nums; }
@@ -374,8 +374,8 @@
   /* Buttons fold away, the trade zone unfolds. Grid-row animation lets "auto" heights animate. */
   .morph-actions, .morph-trade { display: grid; }
   .morph-actions > div, .morph-trade > div { min-height: 0; overflow: hidden; }
-  .morph-actions { grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .9s var(--ease-out-expo) 0s, opacity .5s ease .6s; }
-  .morph-trade { grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .9s var(--ease-out-expo) 0s, opacity .3s ease; }
+  .morph-actions { grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows 1.8s var(--ease-out-expo) 0s, opacity 1s ease 1.2s; }
+  .morph-trade { grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 1.8s var(--ease-out-expo) 0s, opacity .6s ease; }
 
   .morph[data-trading="true"] .morph-head { height: 92px; transition-delay: 0s; }
   .morph[data-trading="true"] .morph-head > * { transition-delay: 0s; }
@@ -383,8 +383,8 @@
   .morph[data-trading="true"] .morph-label { top: 0; opacity: 0; }
   .morph[data-trading="true"] .morph-figure { top: 4px; font-size: 32px; }
   .morph[data-trading="true"] .morph-iban { top: 54px; transform: scale(.82); }
-  .morph[data-trading="true"] .morph-actions { grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .9s var(--ease-out-expo) 0s, opacity .25s ease; }
-  .morph[data-trading="true"] .morph-trade { grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .9s var(--ease-out-expo) 0s, opacity .7s ease .5s; }
+  .morph[data-trading="true"] .morph-actions { grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 1.8s var(--ease-out-expo) 0s, opacity .5s ease; }
+  .morph[data-trading="true"] .morph-trade { grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows 1.8s var(--ease-out-expo) 0s, opacity 1.4s ease 1s; }
 }
 @media (prefers-reduced-motion: reduce) {
   .morph-head, .morph-head > *, .morph-actions, .morph-trade { transition-duration: 0s !important; transition-delay: 0s !important; }

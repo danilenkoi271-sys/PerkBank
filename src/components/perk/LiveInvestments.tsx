@@ -6,9 +6,6 @@ import { liveChange, pendingValue, settleDuration, settlingValue, type LiveOrder
 type Order = LiveOrder & { settled_at: string | null; created_at: string };
 
 const HOLD_MS = 4500;
-const WINDOW_MIN = 60_000;
-const WINDOW_MAX = 240_000;
-const POINTS = 110;
 const W = 400;
 const H = 140;
 const UP = '#3ddc84';
@@ -82,27 +79,35 @@ export function Position({ order, now }: { order: Order; now: number }) {
   </div>;
 }
 
+// A fixed window keeps the horizontal scale constant. Samples sit on a fixed time grid, so once the line reaches the
+// right edge it simply slides left without any point changing its shape.
+const WINDOW_MS = 90_000;
+const STEP_MS = 500;
+const LOOKBACK_MS = 1_200_000;
+const DOMAIN_STEP_MS = 2000;
+
 function Chart({ order, start, now, color }: { order: Order; start: number | undefined; now: number; color: string }) {
   const id = useId().replace(/:/g, '');
   const parsed = Date.parse(order.created_at);
   const created = Number.isFinite(parsed) ? parsed : now;
-  const elapsed = Math.max(0, now - created);
-  // The line grows from the left over the first minute, then the window slides along with the clock.
-  const span = Math.min(WINDOW_MAX, Math.max(WINDOW_MIN, elapsed));
-  const end = elapsed < WINDOW_MIN ? created + WINDOW_MIN : now;
-  const from = end - span;
-  const step = span / POINTS;
+  const growing = now - created < WINDOW_MS; // the line draws in from the left until it reaches the right edge
+  const from = growing ? created : now - WINDOW_MS;
+  const at = (t: number) => valueAt(order, start, t);
 
   const pts: [number, number][] = [];
-  for (let t = Math.max(from, created); t < now; t += step) pts.push([t, valueAt(order, start, t)]);
-  pts.push([now, valueAt(order, start, now)]);
+  if (growing) pts.push([created, at(created)]);
+  for (let t = Math.ceil(Math.max(growing ? created : Math.floor(from / STEP_MS) * STEP_MS, created) / STEP_MS) * STEP_MS; t < now; t += STEP_MS) pts.push([t, at(t)]);
+  pts.push([now, at(now)]);
 
-  const vals = pts.map(p => p[1]);
-  let lo = Math.min(order.amount, ...vals); let hi = Math.max(order.amount, ...vals);
-  const minSpan = order.amount * 0.03;
-  if (hi - lo < minSpan) { const mid = (hi + lo) / 2; lo = mid - minSpan / 2; hi = mid + minSpan / 2; }
-  const pad = (hi - lo) * 0.16; lo -= pad; hi += pad;
-  const x = (t: number) => ((t - from) / span) * W;
+  // Centred on the entry line with a fixed minimum height, so the line sits still. It only grows if the price
+  // really leaves that band (for example during the final move to the result).
+  const minHalf = order.amount * (0.04 + 0.12 * (order.multiplier - 1)) * 1.4;
+  let below = minHalf; let above = minHalf;
+  const seen = (v: number) => { if (order.amount - v > below) below = order.amount - v; if (v - order.amount > above) above = v - order.amount; };
+  for (let t = Math.ceil(Math.max(created, now - LOOKBACK_MS) / DOMAIN_STEP_MS) * DOMAIN_STEP_MS; t < now; t += DOMAIN_STEP_MS) seen(at(t));
+  for (const p of pts) seen(p[1]);
+  const lo = order.amount - below * 1.16; const hi = order.amount + above * 1.16;
+  const x = (t: number) => ((t - from) / WINDOW_MS) * W;
   const y = (v: number) => H - ((v - lo) / (hi - lo)) * H;
 
   const line = pts.map(([t, v], i) => `${i ? 'L' : 'M'}${x(t).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
@@ -110,9 +115,10 @@ function Chart({ order, start, now, color }: { order: Order; start: number | und
   const first = pts[0] ?? last;
   const area = `${line} L${x(last[0]).toFixed(1)} ${H} L${x(first[0]).toFixed(1)} ${H} Z`;
   const entryY = y(order.amount);
+  const fade = growing ? undefined : 'linear-gradient(90deg, transparent, #000 12%)';
 
   return <div className="relative mt-6 h-[140px]" role="img" aria-label="Live profit and loss chart">
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-hidden" style={fade ? { WebkitMaskImage: fade, maskImage: fade } : undefined}>
       <defs>
         <linearGradient id={`g${id}`} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.2"/><stop offset="100%" stopColor={color} stopOpacity="0"/></linearGradient>
       </defs>
