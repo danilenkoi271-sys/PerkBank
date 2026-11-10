@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794018259674,
+      "tag": "0000_perk_bank",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794018916294,
+      "tag": "0001_lock_down_reads",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794020084804,
+      "tag": "0002_transaction_icon",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794097340841,
+      "tag": "0003_multi_user_bank",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794156586108,
+      "tag": "0004_cardless_demo_investing",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794159018375,
+      "tag": "0005_profile_photo_controls",
+      "breakpoints": true
+    }
+  ]
+}

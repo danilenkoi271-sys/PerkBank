@@ -1,0 +1,21 @@
+# Roadmap — cardless Perk
+- [x] Removed the custom notification's rectangular outer surface; live phone check confirms transparent shell and compact dark pill. Home activity now uses compact fully rounded rows instead of a large white section; investment confirmation tests and preview build pass.
+- [ ] Verify updated home with live account activity on phone/laptop; blocked by the account's banking PIN, which is not available to the verification session.
+- [x] Editable profile picture with private owner-folder uploads and signed readback; real unchanged-photo upload persists after reload.
+- [x] Compact 280px receipts and custom Perk notifications above bottom navigation, no generic top rectangles.
+- [x] Blue/white/black styling refined; photo update, receipt opening/closing and laptop layout verified. Photo ownership and investment tests pass.
+- [x] Rounded black/blue/white balance-first home, without statistics.
+- [x] Two-slider investing and success recording before placement; cancel never submits. Confirmation and captured order tests pass.
+- [x] Rounded landing CTA and remove repeated product-screen disclaimers; terms remain in footer only.
+- [x] Signed-in phone/laptop layouts and real video cancellation verified; placement ordering covered by tests without moving user funds.
+- [x] Restore supplied-video landing layout and account/perks copy; retain no-real-money terms.
+- [x] Rebuild spacious account and investing screens without AI photos or Ask AI.
+- [x] Dedicated Send page and temporarily unavailable Perks; remove visible demo labels.
+- [x] Signed-in iPhone/laptop layout, video playback, real recipient lookup, investment slider and Perks verified. Transfer submission remains unchanged; no funds moved during checks.
+- [x] Five-digit demo IBANs replace tags; remove card UI, setup generation and landing references.
+- [x] Atomic demo investing: 1.1–3×, 0.1× increments, stake reserved, success pays stake × multiplier, failure loses stake.
+- [x] Account bottom navigation: home, send, invest, leaderboard and blank perks.
+- [x] Masked leaderboard podium, photos and member stats.
+- [x] Admin-only account button, protected Google identity, all balances editable, order settlement and transactions.
+- [x] 15 tests pass; signed-in admin trade placement reserves $100, 2× success pays $200, failure pays $0, repeat settlement rejects. Verified member stats and restored original balance after removing verification orders.
+- [x] Desktop and phone investing/leaderboard/landing checked, no overflow or runtime errors, preview build OK.
