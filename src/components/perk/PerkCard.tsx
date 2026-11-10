@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 export function PerkLogo({ className }: { className?: string }) {
   return (
-    <span className={cn("font-display font-semibold tracking-tight leading-none", className)}>
+    <span className={cn("font-logo font-semibold leading-none", className)}>
       perk<sup className="ml-[0.04em] text-[0.6em] font-bold align-[0.55em]">+</sup>
     </span>
   );

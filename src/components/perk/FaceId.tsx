@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Overlay } from "./AppShell";
 import loading from "@/assets/face-id-loading.mp4.asset.json";
 import failed from "@/assets/face-id-failed.mp4.asset.json";
 import success from "@/assets/face-id-success.mp4.asset.json";
 
 type Props = { open: boolean; onSuccess: () => void; onCancel: () => void; successOnly?: boolean };
 export function FaceId({ open, ...props }: Props) {
-  return open ? <FaceIdAttempt {...props} /> : null;
+  return open ? <Overlay><FaceIdAttempt {...props} /></Overlay> : null;
 }
 
 function FaceIdAttempt({ onSuccess, onCancel, successOnly = false }: Omit<Props, "open">) {
@@ -59,7 +60,7 @@ function FaceIdAttempt({ onSuccess, onCancel, successOnly = false }: Omit<Props,
               onError={() => setError(true)} onEnded={advance} />
         </div>
         <p role="status" className="mt-2 text-xs font-semibold">{error ? "Playback unavailable" : finished ? "Not Recognised" : "Face ID"}</p>
-        {(finished || error) && <Button variant="ghost" onClick={() => { setAttempt(a => a + 1); setError(false); setFinished(false); setPhase("success"); }} className="mt-3 h-auto whitespace-normal text-center text-xs text-foreground hover:bg-foreground/10">Try Face ID Again</Button>}
+        {(finished || error) && <Button variant="ghost" onClick={() => { setAttempt(a => a + 1); setError(false); setFinished(false); setPhase("success"); }} className="mt-3 h-auto whitespace-normal rounded-full text-center text-xs text-white hover:bg-white/10 hover:text-white">Try Face ID Again</Button>}
       </div>
     </div>
   );

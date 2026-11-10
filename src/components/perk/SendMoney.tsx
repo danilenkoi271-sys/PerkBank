@@ -1,12 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Check } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import { lookupRecipient, sendMoney } from "@/lib/account.functions";
 import { formatMoney } from "@/lib/categories";
-
-const field = "w-full rounded-lg border bg-card px-4 py-4 text-base text-card-foreground outline-none focus:ring-2 focus:ring-ring";
 
 type Recipient = { iban: string; full_name: string; self: boolean };
 
@@ -56,43 +55,47 @@ export function SendMoney({ balance, onSent }: { balance: number; onSent: () => 
   }
 
   return (
-    <form className="space-y-7 text-card-foreground" onSubmit={e => { e.preventDefault(); void submit(); }}>
-        <div>
-          <label htmlFor="recipient-iban" className="mb-2 block text-sm font-semibold text-muted-foreground">Recipient IBAN</label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              
-              <input
-                id="recipient-iban"
-                value={iban}
-                onChange={(e) => { setIban(e.target.value.replace(/\D/g, "").slice(0, 5)); setRecipient(null); setNotFound(false); }}
-                onKeyDown={(e) => { if (e.key === "Enter") void find(); }}
-                placeholder="12345" maxLength={5} inputMode="numeric" className={field}
-              />
-            </div>
-            <Button type="button" onClick={find} disabled={busy || iban.trim().length !== 5} className="h-auto rounded-lg bg-muted px-5 text-sm font-semibold text-card-foreground hover:bg-muted/70">Find</Button>
-          </div>
-          {notFound && <p className="mt-2 text-sm text-destructive">No one found with that IBAN.</p>}
+    <form className="text-card-foreground" onSubmit={e => { e.preventDefault(); void submit(); }}>
+      <div className="panel p-6 sm:p-8">
+        <label htmlFor="recipient-iban" className="field-label">Recipient IBAN</label>
+        <div className="flex gap-2">
+          <input
+            id="recipient-iban"
+            value={iban}
+            onChange={(e) => { setIban(e.target.value.replace(/\D/g, "").slice(0, 5)); setRecipient(null); setNotFound(false); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void find(); } }}
+            placeholder="12345" maxLength={5} inputMode="numeric" autoComplete="off" className="field flex-1 font-mono text-xl tracking-[0.4em]"
+          />
+          <Button type="button" onClick={find} disabled={busy || iban.trim().length !== 5} className="h-14 rounded-2xl bg-ink px-6 text-sm font-medium text-bone hover:bg-ink/85 disabled:opacity-30">Find</Button>
+        </div>
+        <AnimatePresence mode="wait">
+          {notFound && <motion.p key="nf" {...reveal} className="mt-3 text-sm text-destructive">No one found with that IBAN.</motion.p>}
           {recipient && (
-            <p className="mt-2 text-sm">
+            <motion.div key={recipient.iban} {...reveal} className="mt-3">
               {recipient.self
-                ? <span className="text-destructive">That's you — pick someone else.</span>
-                : <span>Sending to <strong>{recipient.full_name}</strong> <span className="text-muted-foreground">{recipient.iban}</span></span>}
-            </p>
+                ? <p className="text-sm text-destructive">That's you — pick someone else.</p>
+                : <div className="flex items-center gap-3 rounded-2xl bg-bone p-3"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-court font-medium text-white">{recipient.full_name.slice(0, 1)}</span><span className="min-w-0 flex-1"><span className="block text-xs text-muted-foreground">Sending to</span><strong className="block truncate font-medium">{recipient.full_name}</strong></span><span className="font-mono text-xs text-muted-foreground">{recipient.iban}</span><Check className="h-4 w-4 text-success"/></div>}
+            </motion.div>
           )}
+        </AnimatePresence>
+      </div>
+
+      <div className="panel mt-3 p-6 sm:p-8">
+        <label htmlFor="send-amount" className="field-label">Amount ($)</label>
+        <div className="flex items-baseline gap-1 border-b border-border pb-3 focus-within:border-ink">
+          <span className="text-[44px] font-medium leading-none tracking-[-0.05em] text-muted-foreground">$</span>
+          <input id="send-amount" value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0.01" step="0.01" placeholder="0.00" inputMode="decimal" className="w-full min-w-0 bg-transparent text-[56px] font-medium leading-none tracking-[-0.05em] outline-none tabular-nums placeholder:text-ink/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
         </div>
-        <div>
-          <label htmlFor="send-amount" className="mb-2 block text-sm font-semibold text-muted-foreground">Amount ($)</label>
-          <input id="send-amount" value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0.01" step="0.01" placeholder="0.00" className={field} />
-          <div className="mt-1 text-xs text-muted-foreground">Balance: {formatMoney(balance)}</div>
-        </div>
-        <div>
-          <label htmlFor="send-note" className="mb-2 block text-sm font-semibold text-muted-foreground">Note (optional)</label>
-          <input id="send-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="What's it for?" className={field} />
-        </div>
-        <Button type="submit" disabled={busy || !recipient || recipient.self || !(value > 0)} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-sky font-semibold text-primary-foreground hover:bg-sky/90 disabled:opacity-50">
-          <ArrowUpRight className="h-4 w-4" />{busy ? "Sending…" : "Send"}
-        </Button>
+        <div className="mt-3 text-xs text-muted-foreground">Balance: <span className="tabular-nums text-ink">{formatMoney(balance)}</span></div>
+        <label htmlFor="send-note" className="field-label mt-8">Note (optional)</label>
+        <input id="send-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="What's it for?" className="field" />
+      </div>
+
+      <Button type="submit" disabled={busy || !recipient || recipient.self || !(value > 0)} className="mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-full bg-court text-base font-medium text-white hover:bg-[#2c56b0] disabled:opacity-35">
+        <ArrowUpRight className="h-5 w-5" />{busy ? "Sending…" : value > 0 ? `Send ${formatMoney(value)}` : "Send"}
+      </Button>
     </form>
   );
 }
+
+const reveal = { initial: { opacity: 0, y: -6 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -6 }, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const } };

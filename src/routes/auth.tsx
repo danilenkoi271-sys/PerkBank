@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { PerkLogo } from "@/components/perk/PerkCard";
+import { motion } from "motion/react";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -20,7 +21,7 @@ export const Route = createFileRoute("/auth")({
 
 function GoogleMark() {
   return (
-    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
       <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
       <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z" />
       <path fill="#FBBC05" d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z" />
@@ -55,20 +56,29 @@ function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-6 text-center text-foreground">
-      <Link to="/" aria-label="Perk home"><PerkLogo className="text-4xl" /></Link>
-      <h1 className="mt-8 text-4xl font-bold sm:text-5xl">One account. Endless perks.</h1>
-      <p className="mt-3 max-w-sm text-foreground/75">Sign in to open your Perk account and rewards.</p>
-      <button
-        onClick={signIn}
-        disabled={busy}
-        className="mt-10 inline-flex items-center gap-2.5 rounded-full border border-[#8E918F] bg-[#131314] py-3 pl-3 pr-3 text-sm font-medium text-[#E3E3E3] transition hover:scale-[1.03] disabled:opacity-60"
-      >
-        <GoogleMark />
-        {busy ? "Opening Google…" : "Continue with Google"}
-      </button>
-      {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
-      <p className="mt-6 text-xs text-foreground/60">Google sign-in only — no passwords to remember.</p>
+    <div className="grid min-h-dvh bg-bone text-ink lg:grid-cols-2">
+      <div className="flex flex-col px-6 py-6 sm:px-10">
+        <Link to="/" aria-label="Perk home" className="self-start"><PerkLogo className="text-[30px]" /></Link>
+        <motion.div className="my-auto w-full max-w-[420px] py-16" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}>
+          <span className="mono-label text-muted-foreground">Welcome to Perk</span>
+          <h1 className="mt-4 text-[clamp(44px,6vw,64px)] font-medium leading-[0.95]">One account.<br /><span className="serif-accent">Endless perks.</span></h1>
+          <p className="mt-5 max-w-sm text-muted-foreground">Sign in to open your Perk account and rewards.</p>
+          <button
+            onClick={signIn}
+            disabled={busy}
+            className="mt-10 inline-flex h-14 w-full items-center justify-center gap-3 rounded-full bg-ink px-6 text-[15px] font-medium text-bone transition hover:bg-ink/85 active:scale-[0.98] disabled:opacity-60"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white"><GoogleMark /></span>
+            {busy ? "Opening Google…" : "Continue with Google"}
+          </button>
+          {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
+          <p className="mt-5 text-xs text-muted-foreground">Google sign-in only — no passwords to remember.</p>
+        </motion.div>
+      </div>
+      <motion.div className="relative m-3 hidden overflow-hidden rounded-[32px] court-bg lg:block" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}>
+        <video aria-label="Perk card and basketball hoop" ref={el => { if (el) { el.muted = true; try { void el.play()?.catch(() => {}); } catch { /* playback unsupported */ } } }} src="/media/perk-hoop.mp4" poster="/media/perk-hoop-poster.jpg" autoPlay muted loop playsInline className="cta-video absolute left-1/2 top-1/2 h-[92%] -translate-x-1/2 -translate-y-1/2 object-cover" />
+        <p className="absolute bottom-8 left-8 right-8 text-[15px] text-white/80">The bank with perks, built for everyone.</p>
+      </motion.div>
     </div>
   );
 }

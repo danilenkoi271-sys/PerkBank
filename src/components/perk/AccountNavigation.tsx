@@ -1,14 +1,22 @@
 import { Link } from '@tanstack/react-router';
-import { ArrowUpRight, Gift, House, TrendingUp, Trophy } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { motion } from 'motion/react';
+import { ArrowUpRight, Gift, House, TrendingUp, Trophy, type LucideIcon } from 'lucide-react';
 
 export type AccountView = 'home' | 'invest' | 'leaderboard' | 'perks';
+
+function Indicator() {
+  return <motion.span layoutId="nav-indicator" className="nav-indicator" transition={{ type: 'spring', stiffness: 420, damping: 36 }}/>;
+}
+function Item({ active, icon: Icon, label }: { active: boolean; icon: LucideIcon; label: string }) {
+  return <>{active && <Indicator/>}<Icon/><span>{label}</span></>;
+}
+
 export function AccountNavigation({ active }: { active: AccountView | 'send' }) {
-  return <nav aria-label="Account navigation" className="bank-navigation">
-    <Button asChild variant="ghost" className={active === 'home' ? 'nav-active' : ''}><Link to="/account" search={{ view: 'home' }}><House/><span>Home</span></Link></Button>
-    <Button asChild variant="ghost" className={active === 'send' ? 'nav-active' : ''}><Link to="/send"><ArrowUpRight/><span>Send</span></Link></Button>
-    <Button asChild variant="ghost" className={active === 'invest' ? 'nav-active' : ''}><Link to="/account" search={{ view: 'invest' }}><TrendingUp/><span>Invest</span></Link></Button>
-    <Button asChild variant="ghost" className={active === 'leaderboard' ? 'nav-active' : ''}><Link to="/account" search={{ view: 'leaderboard' }}><Trophy/><span>League</span></Link></Button>
-    <Button asChild variant="ghost" className={active === 'perks' ? 'nav-active' : ''}><Link to="/account" search={{ view: 'perks' }}><Gift/><span>Perks</span></Link></Button>
-  </nav>;
+  return <motion.nav aria-label="Account navigation" className="bank-navigation" initial={{ y: 40, opacity: 0, x: '-50%' }} animate={{ y: 0, opacity: 1, x: '-50%' }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}>
+    <Link to="/account" search={{ view: 'home' }} className={active === 'home' ? 'nav-active' : ''}><Item active={active === 'home'} icon={House} label="Home"/></Link>
+    <Link to="/send" className={active === 'send' ? 'nav-active' : ''}><Item active={active === 'send'} icon={ArrowUpRight} label="Send"/></Link>
+    <Link to="/account" search={{ view: 'invest' }} className={active === 'invest' ? 'nav-active' : ''}><Item active={active === 'invest'} icon={TrendingUp} label="Invest"/></Link>
+    <Link to="/account" search={{ view: 'leaderboard' }} className={active === 'leaderboard' ? 'nav-active' : ''}><Item active={active === 'leaderboard'} icon={Trophy} label="League"/></Link>
+    <Link to="/account" search={{ view: 'perks' }} className={active === 'perks' ? 'nav-active' : ''}><Item active={active === 'perks'} icon={Gift} label="Perks"/></Link>
+  </motion.nav>;
 }

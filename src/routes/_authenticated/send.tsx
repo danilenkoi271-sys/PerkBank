@@ -3,6 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { motion } from 'motion/react';
+import { AppError, AppLoading, PageHeading, ViewTransition } from '@/components/perk/AppShell';
+import { EASE } from '@/components/perk/motion';
 import { PerkLogo } from '@/components/perk/PerkCard';
 import { AccountNavigation } from '@/components/perk/AccountNavigation';
 import { SendMoney } from '@/components/perk/SendMoney';
@@ -18,12 +21,16 @@ function SendPage() {
   const qc = useQueryClient(); const fetch = useServerFn(getAccountData); const navigate = useNavigate();
   const { data, isLoading, error } = useQuery({ queryKey: ['account-data'], queryFn: () => fetch() });
   const refresh = () => void qc.invalidateQueries({ queryKey: ['account-data'] });
-  if (isLoading) return <div className="bank-loading">Opening payments…</div>;
-  if (error || !data) return <div className="bank-loading"><p>Payments couldn't load.</p><Button onClick={refresh}>Try again</Button></div>;
+  if (isLoading) return <AppLoading label="Opening payments…"/>;
+  if (error || !data) return <AppError message="Payments couldn't load." action={<Button onClick={refresh} className="h-11 rounded-full px-6">Try again</Button>}/>;
   if (data.status === 'no_profile') return <Navigate to="/setup"/>;
   if (data.status === 'locked') return <UnlockFlow open onClose={() => void navigate({ to: '/account', search: { view: 'home' } })} onUnlocked={refresh}/>;
-  return <div className="bank-page"><header className="bank-header"><Link to="/" aria-label="Perk home"><PerkLogo className="text-3xl"/></Link><Button asChild variant="ghost" className="bank-header-control"><Link to="/account" search={{ view: 'home' }}><ArrowLeft className="h-4 w-4"/>Account</Link></Button></header>
-    <section className="bank-send-heading"><p className="text-sm text-foreground/75">PAYMENTS</p><h1 className="mt-3 text-4xl font-bold sm:text-5xl">Send money.</h1><p className="mt-4 text-sm text-foreground/75">Available balance <span className="ml-2 font-semibold text-foreground">{formatMoney(data.account.balance)}</span></p></section>
-    <main className="bank-content"><div className="bank-send-form"><SendMoney balance={data.account.balance} onSent={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/></div></main><AccountNavigation active="send"/>
+  return <div className="bank-page">
+    <motion.header className="bank-header" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}><Link to="/" aria-label="Perk home"><PerkLogo className="text-[30px]"/></Link><Button asChild variant="ghost" className="h-10 rounded-full px-4 text-ink hover:bg-ink/5"><Link to="/account" search={{ view: 'home' }}><ArrowLeft className="h-4 w-4"/>Account</Link></Button></motion.header>
+    <main className="bank-main"><ViewTransition id="send" className="mx-auto max-w-[620px]">
+      <PageHeading eyebrow="Payments" title="Send" accent="money."><p className="mt-4 text-[15px] text-muted-foreground">Available balance <span className="ml-1 font-medium text-ink tabular-nums">{formatMoney(data.account.balance)}</span></p></PageHeading>
+      <SendMoney balance={data.account.balance} onSent={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/>
+    </ViewTransition></main>
+    <AccountNavigation active="send"/>
   </div>;
 }
