@@ -15,3 +15,12 @@ describe("App routing", () => {
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
 });
+
+describe("The employee panel route", () => {
+  it("is reachable at /admin without signing in, and is not behind the account gate", () => {
+    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
+    const matches = router.matchRoutes("/admin");
+    expect(matches.at(-1)?.routeId).toBe("/admin");
+    expect(matches.some(m => m.routeId.includes("_authenticated"))).toBe(false);
+  });
+});
