@@ -8,7 +8,7 @@ describe('Account rules',()=>{
  it('requires positive transfer amounts and at most two decimals',()=>{expect(sendInput.safeParse({iban:'12345',amount:25.5}).success).toBe(true);for(const amount of [-5,0,10.255])expect(sendInput.safeParse({iban:'12345',amount}).success).toBe(false);});
 });
 describe('Demo investing rules',()=>{
- it('supports 1.1 through 3 in exact 0.1 intervals',()=>{for(let i=11;i<=30;i++)expect(tradeInput.safeParse({amount:100,multiplier:i/10}).success).toBe(true);for(const multiplier of [1,3.1,1.15])expect(tradeInput.safeParse({amount:100,multiplier}).success).toBe(false);});
+ it('supports 1.1 through 4 in exact 0.1 intervals (the database decides who may go above 3)',()=>{for(let i=11;i<=40;i++)expect(tradeInput.safeParse({amount:100,multiplier:i/10}).success).toBe(true);for(const multiplier of [1,4.1,1.15])expect(tradeInput.safeParse({amount:100,multiplier}).success).toBe(false);});
  it('success returns $200 total for a $100 stake at 2x',()=>{expect(tradePayout(100,2,true)).toBe(200);});
  it('failure returns none of the stake',()=>{expect(tradePayout(100,2,false)).toBe(0);});
  it('only permits the specified verified Google administrator',()=>{expect(isAdminIdentity('danilenkoi271@gmail.com',['google'],true)).toBe(true);expect(isAdminIdentity('other@gmail.com',['google'],true)).toBe(false);expect(isAdminIdentity('danilenkoi271@gmail.com',['email'],true)).toBe(false);expect(isAdminIdentity('danilenkoi271@gmail.com',['google'],false)).toBe(false);});

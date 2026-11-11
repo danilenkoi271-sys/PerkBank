@@ -1,7 +1,8 @@
 import { z } from 'zod';
 export const ibanSchema = z.string().regex(/^\d{5}$/, 'Enter a five-digit IBAN');
 export const moneySchema = z.number().finite().positive().lt(1e9).refine(n => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, 'Two decimals max');
-export const tradeInput = z.object({ amount: moneySchema, multiplier: z.number().min(1.1).max(3).refine(n => Math.abs(n * 10 - Math.round(n * 10)) < 1e-6, 'Use 0.1× steps') });
+// Validation allows up to 4×; the database only lets users above 3× once they own the max-target perk.
+export const tradeInput = z.object({ amount: moneySchema, multiplier: z.number().min(1.1).max(4).refine(n => Math.abs(n * 10 - Math.round(n * 10)) < 1e-6, 'Use 0.1× steps') });
 export const ADMIN_EMAIL = 'danilenkoi271@gmail.com';
 export function isAdminIdentity(email: unknown, providers: unknown, confirmed: boolean) { return typeof email === 'string' && email.toLowerCase() === ADMIN_EMAIL && Array.isArray(providers) && providers.includes('google') && confirmed; }
 export function tradePayout(amount: number, multiplier: number, success: boolean) { return success ? Math.round(amount * multiplier * 100) / 100 : 0; }

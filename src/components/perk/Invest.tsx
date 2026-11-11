@@ -13,7 +13,7 @@ import { perkFeedback } from './PerkFeedback';
 
 type OrderState = { status: string; settled_at?: string | null };
 const NO_ORDERS: OrderState[] = [];
-export function Invest({ balance: rawBalance, onPlaced, orders = NO_ORDERS, clockOffset = 0 }: { balance: number; onPlaced: () => void; orders?: (OrderState & { id?: string; amount?: number; multiplier?: number; payout?: number })[]; clockOffset?: number }) {
+export function Invest({ balance: rawBalance, onPlaced, maxMultiplier = 3, orders = NO_ORDERS, clockOffset = 0 }: { balance: number; onPlaced: () => void; maxMultiplier?: number; orders?: (OrderState & { id?: string; amount?: number; multiplier?: number; payout?: number })[]; clockOffset?: number }) {
   const { heldPayout } = useGlideHold(orders, clockOffset);
   const balance = rawBalance - heldPayout; // winnings stay hidden until their chart has finished
   // One trade at a time: locked while a trade is pending or still playing out its result.
@@ -25,7 +25,9 @@ export function Invest({ balance: rawBalance, onPlaced, orders = NO_ORDERS, cloc
     const timer = window.setInterval(() => setNow(Date.now() + clockOffset), 1000);
     return () => window.clearInterval(timer);
   }, [locked, orders, clockOffset]);
-  const [multiplier, setMultiplier] = useState(1.5);
+  const [chosenMultiplier, setMultiplier] = useState(1.5);
+  // Always within what this user may choose; the max-target perk raises the limit.
+  const multiplier = Math.min(chosenMultiplier, maxMultiplier);
   const [amount, setAmount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -64,9 +66,9 @@ export function Invest({ balance: rawBalance, onPlaced, orders = NO_ORDERS, cloc
     </div>}
     <div className="grid gap-3 md:grid-cols-2">
       <div className="panel invest-control p-5 sm:p-6">
-        <div className="flex items-center justify-between"><span className="mono-label text-muted-foreground">Target</span><span className="mono-label text-muted-foreground">1.1× – 3.0×</span></div>
+        <div className="flex items-center justify-between"><span className="mono-label text-muted-foreground">Target</span><span className="mono-label text-muted-foreground">1.1× – {maxMultiplier.toFixed(1)}×</span></div>
         <output aria-label="Selected multiplier" className="invest-figure mt-3 block">{multiplier.toFixed(1)}<span className="text-court">×</span></output>
-        <Slider aria-label="Target multiplier" min={1.1} max={3} step={0.1} value={[multiplier]} disabled={busy || confirming || locked} onValueChange={v => setMultiplier(v[0] ?? 1.1)} className="trade-slider mt-4"/>
+        <Slider aria-label="Target multiplier" min={1.1} max={maxMultiplier} step={0.1} value={[multiplier]} disabled={busy || confirming || locked} onValueChange={v => setMultiplier(v[0] ?? 1.1)} className="trade-slider mt-4"/>
       </div>
       <div className="panel invest-control p-5 sm:p-6">
         <div className="flex items-center justify-between"><span className="mono-label text-muted-foreground">Amount</span><button type="button" disabled={balance <= 0 || busy || confirming || locked} onClick={() => setAmount(balance)} className="mono-label rounded-full bg-bone px-2.5 py-1 text-ink transition hover:bg-secondary disabled:opacity-40">Max</button></div>

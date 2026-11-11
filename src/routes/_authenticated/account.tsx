@@ -18,6 +18,10 @@ import { AppError, AppLoading, ViewTransition } from '@/components/perk/AppShell
 import { EASE } from '@/components/perk/motion';
 import { useGlideHold } from '@/components/perk/useGlideHold';
 import { getAccountData, lockAccount } from '@/lib/account.functions';
+import { getPerks } from '@/lib/perks.functions';
+import { maxMultiplierOf, type PerkState } from '@/lib/perks';
+import { PerksShop } from '@/components/perk/PerksShop';
+import type { UseQueryResult } from '@tanstack/react-query';
 import type { Txn } from '@/lib/bank';
 
 export const Route = createFileRoute('/_authenticated/account')({
@@ -34,7 +38,10 @@ function AccountPage() {
   // Server time minus device time. The least-delayed reading is the most accurate, so only ever raise it.
   const offsetRef = useRef<number | null>(null);
   if (data?.status === 'ready' && dataUpdatedAt) { const o = data.serverNow - dataUpdatedAt; if (offsetRef.current === null || o > offsetRef.current) offsetRef.current = o; }
-  const refresh = () => { void qc.invalidateQueries({ queryKey: ['account-data'] }); void qc.invalidateQueries({ queryKey: ['leaderboard'] }); };
+  // Perk points are loaded on their own so a problem there can never affect the account itself.
+  const fetchPerks = useServerFn(getPerks);
+  const perksQuery = useQuery({ queryKey: ['perks'], queryFn: () => fetchPerks(), retry: false, enabled: view === 'perks' || view === 'invest' });
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ['account-data'] }); void qc.invalidateQueries({ queryKey: ['leaderboard'] }); void qc.invalidateQueries({ queryKey: ['perks'] }); };
   if (isLoading) return <AppLoading label="Opening Perk…"/>;
   if (error || !data) return <AppError message="We couldn't open your account." action={<Button onClick={refresh} className="h-11 rounded-full px-6">Try again</Button>}/>;
   if (data.status === 'no_profile') return <Navigate to="/setup"/>;
@@ -60,26 +67,23 @@ function AccountPage() {
 
           <TransactionsPanel txns={txns} orders={orders} clockOffset={offsetRef.current ?? 0} filter={filter} setFilter={setFilter} onSelect={setSelected}/>
         </ViewTransition>
-        : view === 'invest' ? <ViewTransition id="invest" className="h-full"><Invest balance={account.balance} orders={orders} clockOffset={offsetRef.current ?? 0} onPlaced={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/></ViewTransition>
+        : view === 'invest' ? <ViewTransition id="invest" className="h-full"><Invest balance={account.balance} maxMultiplier={maxMultiplierOf(perksQuery.data)} orders={orders} clockOffset={offsetRef.current ?? 0} onPlaced={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/></ViewTransition>
         : view === 'leaderboard' ? <ViewTransition id="leaderboard"><Leaderboard/></ViewTransition>
-        : <ViewTransition id="perks"><Perks/></ViewTransition>}
+        : <ViewTransition id="perks"><PerksView query={perksQuery} iban={profile.iban ?? ''} onChanged={refresh}/></ViewTransition>}
       </AnimatePresence>
     </main>
     <AccountNavigation active={view}/><Receipt txn={selected} iban={profile.iban ?? ''} holder={profile.full_name} onClose={() => setSelected(null)}/>
   </div>;
 }
 
-function Perks() {
-  return <section className="panel-ink relative mx-auto flex min-h-[60vh] max-w-[760px] flex-col items-center justify-center overflow-hidden px-8 py-20 text-center" aria-label="Perks">
-    <div className="relative flex h-24 w-24 items-center justify-center">
-      <span className="absolute inset-0 rounded-full bg-court/50 animate-pulse-ring"/>
-      <span className="absolute inset-0 rounded-full bg-court/50 animate-pulse-ring [animation-delay:.9s]"/>
-      <span className="relative flex h-24 w-24 items-center justify-center rounded-full bg-court font-logo text-5xl text-white">+</span>
-    </div>
-    <span className="mono-label mt-10 text-bone/50">Rewards & bonuses</span>
-    <h1 className="mt-3 text-5xl font-medium">Perks</h1>
-    <p className="mt-3 text-bone/60">Temporarily unavailable</p>
+function PerksView({ query, iban, onChanged }: { query: UseQueryResult<PerkState>; iban: string; onChanged: () => void }) {
+  if (query.isLoading) return <section className="panel-ink mx-auto flex min-h-[50vh] max-w-[940px] items-center justify-center" aria-label="Perks" role="status"><span className="flex gap-1.5"><span className="loader-dot"/><span className="loader-dot"/><span className="loader-dot"/></span><span className="sr-only">Loading perks</span></section>;
+  if (query.error || !query.data) return <section className="panel-ink mx-auto flex min-h-[50vh] max-w-[940px] flex-col items-center justify-center gap-4 px-8 text-center" aria-label="Perks">
+    <h1 className="text-3xl font-medium">Perks are on the way</h1>
+    <p className="max-w-sm text-bone/60">The perks shop is opening soon. Your points are safe and will be waiting for you.</p>
+    <Button onClick={() => void query.refetch()} className="mt-2 h-11 rounded-full bg-bone px-6 text-ink hover:bg-white">Try again</Button>
   </section>;
+  return <PerksShop state={query.data} iban={iban} onChanged={onChanged}/>;
 }
 
 type Filter = 'all' | 'in' | 'out';
