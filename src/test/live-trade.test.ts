@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fillTime, hasActiveTrade, isPreparing, pendingValue, prepDuration, prepStage, settlingValue, SETTLE_FAIL_MS, SETTLE_SUCCESS_MS, TRADE_LOCK_MS } from '@/lib/live-trade';
+import { fillTime, hasActiveTrade, isPreparing, pendingValue, prepDuration, prepStage, settlingValue, SETTLE_FAIL_MS, SETTLE_SUCCESS_MS } from '@/lib/live-trade';
 
 const order = { id: 'abc-123', amount: 100, multiplier: 2, status: 'pending' };
 
@@ -75,17 +75,27 @@ describe('settlement routes', () => {
 
 describe('one trade at a time', () => {
   const now = Date.parse('2026-11-10T22:00:00.000Z');
+  const settledAgo = (status: string, ms: number) => ({ status, settled_at: new Date(now - ms).toISOString() });
   it('is locked while a trade is pending', () => {
     expect(hasActiveTrade([{ status: 'pending', settled_at: null }], now)).toBe(true);
   });
-  it('stays locked while a settled trade is still playing out, then frees up', () => {
-    const settled = { status: 'success', settled_at: new Date(now - 20_000).toISOString() };
-    expect(hasActiveTrade([settled], now)).toBe(true);
-    expect(hasActiveTrade([settled], now + TRADE_LOCK_MS)).toBe(false);
+  it('stays locked while the chart plays the result, and frees up the moment it finishes', () => {
+    expect(hasActiveTrade([settledAgo('success', 20_000)], now)).toBe(true);
+    expect(hasActiveTrade([settledAgo('success', SETTLE_SUCCESS_MS - 1)], now)).toBe(true);
+    expect(hasActiveTrade([settledAgo('success', SETTLE_SUCCESS_MS)], now)).toBe(false);
+    expect(hasActiveTrade([settledAgo('failed', SETTLE_SUCCESS_MS + 1_000)], now)).toBe(true); // losses play out longer
+    expect(hasActiveTrade([settledAgo('failed', SETTLE_FAIL_MS)], now)).toBe(false);
+  });
+  it('does not keep the user waiting after the chart has finished', () => {
+    expect(hasActiveTrade([settledAgo('success', SETTLE_SUCCESS_MS + 1_000)], now)).toBe(false);
+  });
+  it('lets the server allow a little slack for clocks that differ by a moment', () => {
+    expect(hasActiveTrade([settledAgo('success', SETTLE_SUCCESS_MS - 1_500)], now, 2_000)).toBe(false);
+    expect(hasActiveTrade([settledAgo('success', SETTLE_SUCCESS_MS - 3_000)], now, 2_000)).toBe(true);
   });
   it('is free with no orders or only old ones', () => {
     expect(hasActiveTrade([], now)).toBe(false);
-    expect(hasActiveTrade([{ status: 'failed', settled_at: new Date(now - 3_600_000).toISOString() }], now)).toBe(false);
+    expect(hasActiveTrade([settledAgo('failed', 3_600_000)], now)).toBe(false);
   });
 });
 
@@ -142,5 +152,36 @@ describe('stalls', () => {
     const v = Array.from({ length: 221 }, (_, i) => settlingValue(win, start, start + (i / 220) * SETTLE_SUCCESS_MS));
     expect(longestRun(v)).toBeGreaterThanOrEqual(6);
     expect(v[220]).toBe(200);
+  });
+});
+
+describe('step pacing', () => {
+  // How long each step takes (working plus its confirmation) for a given trade.
+  const slots = (id: string) => {
+    const o = { id, amount: 100, multiplier: 2, status: 'pending', created_at: '2026-11-10T21:00:00.000Z' };
+    const out: number[] = []; let last = ''; let began = 0; const total = prepDuration(o);
+    const stepOf = (l: string) => ['Searching coins', 'Coin found'].includes(l) ? 0 : l;
+    for (let t = 0; t <= total; t += 25) {
+      const k = String(stepOf(prepStage(o, Math.min(t, total - 1)).label) === 0 ? 'coin' : prepStage(o, Math.min(t, total - 1)).label.replace(/ confirmed| checked| ready| done|ing$|…/g, ''));
+      if (k !== last) { if (last) out.push(t - began); last = k; began = t; }
+    }
+    return out;
+  };
+  it('coin search is never very short, often long, and differs noticeably between trades', () => {
+    const coin = Array.from({ length: 300 }, (_, i) => (slots(`pace-${i}`)[0] as number));
+    expect(Math.min(...coin)).toBeGreaterThanOrEqual(2000);
+    expect(Math.max(...coin)).toBeGreaterThan(8000);
+    expect(Math.max(...coin) / Math.min(...coin)).toBeGreaterThan(3);
+    expect(coin.filter(x => x > 6000).length).toBeGreaterThan(15);
+  });
+  it('the other steps vary between trades too', () => {
+    const second = Array.from({ length: 200 }, (_, i) => (slots(`pace-${i}`)[1] as number));
+    expect(Math.max(...second) - Math.min(...second)).toBeGreaterThan(1500);
+  });
+  it('every trade still adds up to its own total length', () => {
+    for (const id of ['a', 'b', 'c']) {
+      const o = { id, amount: 100, multiplier: 2, status: 'pending', created_at: '2026-11-10T21:00:00.000Z' };
+      expect(prepStage(o, prepDuration(o) - 1).label).toBe('Order placed');
+    }
   });
 });

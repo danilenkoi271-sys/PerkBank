@@ -8,7 +8,7 @@ export const placeTrade = createServerFn({method:'POST'}).middleware([requireSup
  // One trade at a time: refuse while a trade is pending or still playing out its result.
  const {data:existing,error:existingError} = await context.supabase.from('trade_orders').select('status,settled_at').eq('user_id',context.userId);
  if(existingError) throw new Error('Trading is unavailable right now');
- if(hasActiveTrade(existing,Date.now())) throw new Error('You already have a trade running. You can place another once it finishes.');
+ if(hasActiveTrade(existing,Date.now(),2000)) throw new Error('You already have a trade running. You can place another once it finishes.');
  const {data:id,error} = await context.supabase.rpc('place_demo_trade',{_amount:data.amount,_multiplier:data.multiplier});
  if(error) throw new Error(error.message); return {id};
 });

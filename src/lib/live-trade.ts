@@ -82,10 +82,22 @@ const PREP_STEPS = [
  * What the "thinking" pill shows at a given moment: each step works for a while, then briefly confirms it is done
  * before the next one starts. Shorter waits skip a step or two; the last step is always placing the order.
  */
+/** Per-trade pacing for the steps: coin search is never very short and often much longer, the rest vary a little. */
+function prepWeights(order: LiveOrder, picks: number[]) {
+  const r = rng((Math.floor(seed(order.id) * 4294967295) ^ 0x2c1b3c6d) >>> 0);
+  const longSearch = r() < 0.3;
+  return picks.map((step, i) => {
+    const jitter = r();
+    if (step === 0) return longSearch ? 3.5 + jitter * 2.5 : 1.6 + jitter * 1.4;
+    if (i === picks.length - 1) return 0.9 + jitter;
+    return 0.7 + jitter * 1.1;
+  });
+}
+
 export function prepStage(order: LiveOrder, elapsedMs: number): { label: string; done: boolean } {
   const total = prepDuration(order);
   const picks = total < 13_000 ? [0, 1, 4, 5] : total < 19_000 ? [0, 1, 2, 4, 5] : [0, 1, 2, 3, 4, 5];
-  const weights = picks.map((_, i) => (i === picks.length - 1 ? 1.5 : 1));
+  const weights = prepWeights(order, picks);
   const sum = weights.reduce((a, b) => a + b, 0);
   let start = 0;
   for (let i = 0; i < picks.length; i++) {
@@ -177,14 +189,14 @@ export function liveChange(order: LiveOrder, value: number) {
 function clamp(v: number, lo: number, hi: number) { return Math.min(hi, Math.max(lo, v)); }
 function round2(v: number) { return Math.round(v * 100) / 100; }
 
-/** How long a finished trade keeps the live view (and the one-trade-at-a-time lock) open after settlement. */
-export const TRADE_LOCK_MS = 80_000;
-
-/** A trade is in progress while it is pending, or still playing out its result. Only one is allowed at a time. */
-export function hasActiveTrade(orders: { status: string; settled_at?: string | null }[], nowMs: number) {
+/**
+ * A trade is in progress while it is pending, or until its chart has finished playing the result. Only one is allowed
+ * at a time. `graceMs` lets the server accept a request that arrives right as the chart finishes on the user's screen.
+ */
+export function hasActiveTrade(orders: { status: string; settled_at?: string | null }[], nowMs: number, graceMs = 0) {
   return orders.some(o => {
     if (o.status === 'pending') return true;
     const at = o.settled_at ? Date.parse(o.settled_at) : NaN;
-    return Number.isFinite(at) && nowMs - at < TRADE_LOCK_MS;
+    return Number.isFinite(at) && nowMs < at + settleDuration({ id: '', amount: 0, multiplier: 0, status: o.status }) - graceMs;
   });
 }
