@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fillTime, hasActiveTrade, isPreparing, pendingValue, prepDuration, prepStage, settlingValue, SETTLE_FAIL_MS, SETTLE_SUCCESS_MS } from '@/lib/live-trade';
+import { fillTime, hasActiveTrade, isPreparing, pendingValue, prepDuration, prepPlan, prepStage, settlingValue, SETTLE_FAIL_MS, SETTLE_SUCCESS_MS } from '@/lib/live-trade';
 
 const order = { id: 'abc-123', amount: 100, multiplier: 2, status: 'pending' };
 
@@ -183,5 +183,41 @@ describe('step pacing', () => {
       const o = { id, amount: 100, multiplier: 2, status: 'pending', created_at: '2026-11-10T21:00:00.000Z' };
       expect(prepStage(o, prepDuration(o) - 1).label).toBe('Order placed');
     }
+  });
+});
+
+describe('thinking time feels organic', () => {
+  const mk = (id: string) => ({ id, amount: 100, multiplier: 2, status: 'pending', created_at: '2026-11-10T21:00:00.000Z' });
+  const ids = Array.from({ length: 600 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+  it('more trades take close to 30 seconds than close to 10', () => {
+    const totals = ids.map(id => prepDuration(mk(id))).sort((a, b) => a - b);
+    expect(totals[Math.floor(totals.length / 2)] as number).toBeGreaterThan(22_000); // the median trade
+    expect(totals.filter(t => t >= 25_000).length / totals.length).toBeGreaterThan(0.4);
+    expect(totals.filter(t => t <= 15_000).length / totals.length).toBeLessThan(0.15);
+    expect(Math.min(...totals)).toBeGreaterThanOrEqual(10_000);
+    expect(Math.max(...totals)).toBeLessThanOrEqual(30_000);
+  });
+  it('the steps of one plan tile the whole wait with no gaps', () => {
+    for (const id of ids.slice(0, 50)) {
+      const plan = prepPlan(mk(id)); const total = prepDuration(mk(id));
+      expect(plan[0]?.startMs).toBe(0);
+      for (let i = 1; i < plan.length; i++) expect(plan[i]?.startMs).toBeCloseTo(plan[i - 1]?.endMs as number, 6);
+      expect(plan[plan.length - 1]?.endMs).toBeCloseTo(total, 3);
+    }
+  });
+  it('within one trade the steps differ sharply: the longest is several times the shortest', () => {
+    const ratios = ids.map(id => { const d = prepPlan(mk(id)).map(s => s.endMs - s.startMs); return Math.max(...d) / Math.min(...d); });
+    expect(ratios.filter(r => r >= 2.5).length / ratios.length).toBeGreaterThan(0.7);
+    expect(Math.max(...ratios)).toBeGreaterThan(5);
+  });
+  it('the same step takes very different times in different trades', () => {
+    for (const name of ['Searching coins', 'Estimating', 'Calculating']) {
+      const times = ids.flatMap(id => prepPlan(mk(id)).filter(s => s.work === name).map(s => s.endMs - s.startMs));
+      expect(times.length).toBeGreaterThan(100);
+      expect(Math.max(...times) - Math.min(...times)).toBeGreaterThan(4_000);
+    }
+  });
+  it('no step is ever too short to read, and coin search is never rushed', () => {
+    for (const id of ids) for (const s of prepPlan(mk(id))) expect(s.endMs - s.startMs).toBeGreaterThanOrEqual(s.work === 'Searching coins' ? 2_400 - 1 : 1_400 - 1);
   });
 });

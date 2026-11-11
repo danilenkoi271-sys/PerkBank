@@ -59,7 +59,8 @@ export function pendingValue(order: LiveOrder, nowMs: number) {
 /** Before a trade goes live it is "prepared" for 10 to 30 seconds. The length comes from the order id, so every device agrees. */
 export const PREP_MIN_MS = 10_000;
 export const PREP_MAX_MS = 30_000;
-export const prepDuration = (order: LiveOrder) => Math.round(PREP_MIN_MS + seed(order.id) * (PREP_MAX_MS - PREP_MIN_MS));
+// Skewed toward the long end: u^0.4 puts about half of all trades above 25 seconds and roughly one in four above 28.
+export const prepDuration = (order: LiveOrder) => Math.round(PREP_MIN_MS + Math.pow(seed(order.id), 0.4) * (PREP_MAX_MS - PREP_MIN_MS));
 /** The moment the trade goes live: placement time plus the preparation phase. NaN when the order has no timestamp. */
 export function fillTime(order: LiveOrder) {
   const created = order.created_at ? Date.parse(order.created_at) : NaN;
@@ -82,33 +83,49 @@ const PREP_STEPS = [
  * What the "thinking" pill shows at a given moment: each step works for a while, then briefly confirms it is done
  * before the next one starts. Shorter waits skip a step or two; the last step is always placing the order.
  */
-/** Per-trade pacing for the steps: coin search is never very short and often much longer, the rest vary a little. */
+/**
+ * Per-trade pacing. Every step gets a minimum time and a random share of the rest, with a heavy tail, so within one
+ * trade some steps are quick and others drag, and the same step differs a lot from trade to trade. Coin search is
+ * never very short and is sometimes much longer than anything else.
+ */
 function prepWeights(order: LiveOrder, picks: number[]) {
   const r = rng((Math.floor(seed(order.id) * 4294967295) ^ 0x2c1b3c6d) >>> 0);
   const longSearch = r() < 0.3;
-  return picks.map((step, i) => {
+  return picks.map(step => {
     const jitter = r();
-    if (step === 0) return longSearch ? 3.5 + jitter * 2.5 : 1.6 + jitter * 1.4;
-    if (i === picks.length - 1) return 0.9 + jitter;
-    return 0.7 + jitter * 1.1;
+    if (step === 0) return longSearch ? 3.5 + jitter * 3 : 1.6 + jitter * 1.6;
+    return 0.3 + 4.2 * Math.pow(jitter, 1.7);
+  });
+}
+
+export type PrepStep = { work: string; done: string; startMs: number; endMs: number };
+/** The full timeline for one trade's preparation: which steps run, and when each starts and ends. */
+export function prepPlan(order: LiveOrder): PrepStep[] {
+  const total = prepDuration(order);
+  const picks = total < 13_000 ? [0, 1, 4, 5] : total < 19_000 ? [0, 1, 2, 4, 5] : [0, 1, 2, 3, 4, 5];
+  const weights = prepWeights(order, picks);
+  const floors = picks.map(step => (step === 0 ? 2400 : 1400));
+  const free = Math.max(0, total - floors.reduce((a, b) => a + b, 0));
+  const sum = weights.reduce((a, b) => a + b, 0);
+  let at = 0;
+  return picks.map((step, i) => {
+    const length = (floors[i] as number) + free * ((weights[i] as number) / sum);
+    const entry = PREP_STEPS[step] as { work: string; done: string };
+    const out = { work: entry.work, done: entry.done, startMs: at, endMs: at + length };
+    at += length;
+    return out;
   });
 }
 
 export function prepStage(order: LiveOrder, elapsedMs: number): { label: string; done: boolean } {
-  const total = prepDuration(order);
-  const picks = total < 13_000 ? [0, 1, 4, 5] : total < 19_000 ? [0, 1, 2, 4, 5] : [0, 1, 2, 3, 4, 5];
-  const weights = prepWeights(order, picks);
-  const sum = weights.reduce((a, b) => a + b, 0);
-  let start = 0;
-  for (let i = 0; i < picks.length; i++) {
-    const slot = ((weights[i] as number) / sum) * total;
-    const end = start + slot;
-    if (elapsedMs < end) {
-      const step = PREP_STEPS[picks[i] as number] as { work: string; done: string };
+  const plan = prepPlan(order);
+  for (const step of plan) {
+    if (elapsedMs < step.endMs) {
+      const slot = step.endMs - step.startMs;
+      // Each step confirms itself briefly before the next one starts.
       const doneFor = Math.min(slot * 0.5, Math.max(700, Math.min(1500, slot * 0.28)));
-      return elapsedMs >= end - doneFor ? { label: step.done, done: true } : { label: step.work, done: false };
+      return elapsedMs >= step.endMs - doneFor ? { label: step.done, done: true } : { label: step.work, done: false };
     }
-    start = end;
   }
   return { label: (PREP_STEPS[5] as { done: string }).done, done: true };
 }

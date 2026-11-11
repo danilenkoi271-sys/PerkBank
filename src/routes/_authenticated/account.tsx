@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
 import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { Info, LogOut, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PerkLogo } from '@/components/perk/PerkCard';
 import { UnlockFlow } from '@/components/perk/UnlockFlow';
@@ -21,6 +21,7 @@ import { getAccountData, lockAccount } from '@/lib/account.functions';
 import { getPerks } from '@/lib/perks.functions';
 import { maxMultiplierOf, type PerkState } from '@/lib/perks';
 import { PerksShop } from '@/components/perk/PerksShop';
+import { BotInfo } from '@/components/perk/BotInfo';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { Txn } from '@/lib/bank';
 
@@ -32,7 +33,7 @@ export const Route = createFileRoute('/_authenticated/account')({
 
 function AccountPage() {
   const qc = useQueryClient(); const fetch = useServerFn(getAccountData); const lock = useServerFn(lockAccount); const navigate = useNavigate();
-  const view = Route.useSearch().view ?? 'home'; const [selected, setSelected] = useState<Txn | null>(null);
+  const view = Route.useSearch().view ?? 'home'; const [selected, setSelected] = useState<Txn | null>(null); const [infoOpen, setInfoOpen] = useState(false);
   const { data, isLoading, error, dataUpdatedAt } = useQuery({ queryKey: ['account-data'], queryFn: () => fetch(), refetchInterval: q => q.state.data?.status === 'ready' && q.state.data.orders.some(o => o.status === 'pending') ? 4000 : 15000 });
   const [filter, setFilter] = useState<'all' | 'in' | 'out'>('all');
   // Server time minus device time. The least-delayed reading is the most accurate, so only ever raise it.
@@ -54,6 +55,7 @@ function AccountPage() {
     <motion.header className="bank-header" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}>
       <Link to="/" aria-label="Perk home"><PerkLogo className="text-[30px]"/></Link>
       <div className="flex items-center gap-1.5">
+        {view === 'invest' && <Button variant="ghost" size="icon" aria-label="About the trading bot" title="About the trading bot" className="bank-header-control" onClick={() => setInfoOpen(true)}><Info className="h-[18px] w-[18px]"/></Button>}
         {isAdmin && <Button asChild variant="ghost" size="icon" aria-label="Administration" className="bank-header-control"><Link to="/manage"><ShieldCheck className="h-[18px] w-[18px]"/></Link></Button>}
         <Button variant="ghost" size="icon" aria-label="Lock account" className="bank-header-control" onClick={async () => { await lock(); refresh(); }}><LogOut className="h-[18px] w-[18px]"/></Button>
         <span className="ml-1.5"><ProfilePhoto name={profile.full_name} url={profile.avatar_url} onSaved={refresh}/></span>
@@ -72,6 +74,7 @@ function AccountPage() {
         : <ViewTransition id="perks"><PerksView query={perksQuery} iban={profile.iban ?? ''} onChanged={refresh}/></ViewTransition>}
       </AnimatePresence>
     </main>
+    <BotInfo open={infoOpen} onClose={() => setInfoOpen(false)} maxMultiplier={maxMultiplierOf(perksQuery.data)}/>
     <AccountNavigation active={view}/><Receipt txn={selected} iban={profile.iban ?? ''} holder={profile.full_name} onClose={() => setSelected(null)}/>
   </div>;
 }

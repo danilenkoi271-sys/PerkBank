@@ -22,7 +22,8 @@ function Barcode({ value }: { value: string }) {
 const NOTCH = "radial-gradient(circle 12px at 0 100%, transparent 97%, #000) left / 51% 100% no-repeat, radial-gradient(circle 12px at 100% 100%, transparent 97%, #000) right / 51% 100% no-repeat";
 const SCALLOP = "radial-gradient(circle 13px at 50% 100%, transparent 97%, #000) 0 0 / 44px 100% repeat-x";
 
-export function Receipt({ txn, iban, holder, onClose }: { txn: Txn | null; iban: string; holder: string; onClose: () => void }) {
+/** `anonymous` leaves out the account holder and IBAN, for receipts shown to people other than the owner. */
+export function Receipt({ txn, iban, holder, onClose, anonymous = false }: { txn: Txn | null; iban: string; holder: string; onClose: () => void; anonymous?: boolean }) {
   if (!txn) return null;
   const cat = getCategory(txn.category);
   const d = new Date(txn.created_at);
@@ -51,10 +52,12 @@ export function Receipt({ txn, iban, holder, onClose }: { txn: Txn | null; iban:
               <div className="mt-1 font-semibold">{d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</div></div>
             {txn.note && <div className="col-span-2"><div className="text-xs uppercase tracking-wide text-muted-foreground">Note</div><div className="mt-1 font-medium">{txn.note}</div></div>}
           </div>
+          {!anonymous && (
           <div className="mt-5 flex items-center gap-3 rounded-2xl bg-muted p-4">
             <div className="flex h-9 w-12 items-center justify-center rounded-md bg-sky text-[11px] font-bold text-primary-foreground">perk</div>
             <div className="text-sm"><div className="font-semibold">{holder}</div><div className="text-muted-foreground">IBAN {iban}</div></div>
           </div>
+          )}
         </div>
         {/* Barcode stub with scalloped edge */}
         <div className="relative bg-card px-7 pb-10 pt-5" style={{ WebkitMask: SCALLOP, mask: SCALLOP }}>
