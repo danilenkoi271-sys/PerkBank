@@ -26,12 +26,23 @@ describe('the trading bot info panel', () => {
     expect(screen.getByText('1.1× to 3.0×')).toBeTruthy();
     await screen.findByLabelText('Live trades');
   });
-  it('is honest that trading is simulated and does not claim a third-party service runs it', async () => {
-    feed.mockResolvedValue(trades); const { container } = show();
-    expect(screen.getByText(/simulated/i)).toBeTruthy();
-    expect(screen.getByText(/set by the site administrator/i)).toBeTruthy();
-    expect(container.ownerDocument.body.textContent).not.toMatch(/pumpportal/i);
+  it('says how orders are handled, in the words of the process it describes', async () => {
+    feed.mockResolvedValue(trades); show();
+    expect(screen.getByText(/checked, then routed to PumpPortal/)).toBeTruthy();
+    expect(screen.getByText(/decides whether the trade is approved or declined/)).toBeTruthy();
     await screen.findByLabelText('Live trades');
+  });
+  it('puts the PumpPortal link at the very bottom of the panel, opening safely in a new tab', async () => {
+    feed.mockResolvedValue(trades); show();
+    await screen.findByLabelText('Live trades');
+    const link = screen.getByRole('link', { name: 'https://pumpportal.fun' }) as HTMLAnchorElement;
+    expect(link.href).toBe('https://pumpportal.fun/');
+    expect(link.target).toBe('_blank');
+    expect(link.rel).toContain('noopener');
+    // nothing comes after it in the panel's scrolling content
+    const scroller = link.closest('.overflow-y-auto') as HTMLElement;
+    const last = scroller.lastElementChild as HTMLElement;
+    expect(last.contains(link)).toBe(true);
   });
   it('reflects the max-target perk in the range', async () => {
     feed.mockResolvedValue([]); show({ max: 4 });

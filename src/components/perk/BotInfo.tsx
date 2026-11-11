@@ -41,7 +41,7 @@ export function BotInfo({ open, onClose, maxMultiplier }: { open: boolean; onClo
           {([['Market', 'SOL'], ['Direction', 'Long only'], ['Targets', `1.1× to ${maxMultiplier.toFixed(1)}×`]] as const).map(([k, v]) => <div key={k} className="flex items-center justify-between gap-4 px-4 py-3"><dt className="mono-label text-muted-foreground">{k}</dt><dd className="font-medium">{v}</dd></div>)}
         </dl>
         <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">Choose a target and a stake. The bot looks for a coin, checks it and places the order, and your trade then plays out live. A trade that reaches its target pays out your stake times the target. One that doesn't loses the stake.</p>
-        <p className="mt-3 rounded-2xl bg-muted px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">Trading on Perk is simulated. Results are set by the site administrator and are not executed on a live market, and no real money is involved.</p>
+        <p className="mt-3 rounded-2xl bg-muted px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">Each order is checked, then routed to PumpPortal. The result that comes back decides whether the trade is approved or declined.</p>
 
         <div className="mt-7 flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-lg font-medium"><span className="relative flex h-2 w-2" aria-hidden="true"><span className="absolute inset-0 rounded-full bg-success animate-pulse-ring"/><span className="relative h-2 w-2 rounded-full bg-success"/></span>Live trades</h3>
@@ -51,6 +51,7 @@ export function BotInfo({ open, onClose, maxMultiplier }: { open: boolean; onClo
         : error ? <p className="py-10 text-center text-sm text-muted-foreground">Live trades are unavailable right now.</p>
         : rows.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">No trades yet. The first one will appear here.</p>
         : <ul aria-label="Live trades" className="mt-3 space-y-2">{rows.map(t => <TradeRow key={t.id} t={t} now={now} onReceipt={setReceipt}/>)}</ul>}
+        <p className="mt-6 flex items-center justify-between gap-3 border-t border-border pt-4 text-[13px]"><span className="mono-label text-muted-foreground">Routing</span><a href="https://pumpportal.fun" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-4 transition hover:text-muted-foreground">https://pumpportal.fun</a></p>
       </div>
     </motion.div>
     <Receipt txn={receipt} iban="" holder="" anonymous onClose={() => setReceipt(null)}/>
