@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { formatMoney } from '@/lib/categories';
-import { fillTime, liveChange, pendingValue, settleDuration, settlingValue, type LiveOrder } from '@/lib/live-trade';
+import { fillTime, liveChange, orderValueAt, settleDuration, type LiveOrder } from '@/lib/live-trade';
 
 type Order = LiveOrder & { settled_at: string | null; created_at: string };
 
@@ -11,8 +11,7 @@ const H = 140;
 const UP = '#3ddc84';
 const DOWN = '#ff6b6b';
 
-const valueAt = (o: Order, settleStart: number | undefined, t: number) =>
-  settleStart !== undefined && t >= settleStart ? settlingValue(o, settleStart, t) : pendingValue(o, t);
+const valueAt = orderValueAt;
 
 function clock(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000));

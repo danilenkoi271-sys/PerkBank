@@ -75,7 +75,7 @@ function AccountPage() {
       </AnimatePresence>
     </main>
     <BotInfo open={infoOpen} onClose={() => setInfoOpen(false)} maxMultiplier={maxMultiplierOf(perksQuery.data)}/>
-    <AccountNavigation active={view}/><Receipt txn={selected} iban={profile.iban ?? ''} holder={profile.full_name} onClose={() => setSelected(null)}/>
+    <AccountNavigation active={view}/><Receipt txn={selected} iban={profile.iban ?? ''} holder={profile.full_name} trade={selected?.order_id ? orders.find(o => o.id === selected.order_id) ?? null : null} onClose={() => setSelected(null)}/>
   </div>;
 }
 

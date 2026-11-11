@@ -27,7 +27,7 @@ const asTxn = (r: FeedReceipt, category: string): Txn => ({ id: r.reference, tit
 export function BotInfo({ open, onClose, maxMultiplier }: { open: boolean; onClose: () => void; maxMultiplier: number }) {
   const fetchFeed = useServerFn(getTradeFeed);
   const { data, isLoading, error } = useQuery({ queryKey: ['trade-feed'], queryFn: () => fetchFeed(), enabled: open, refetchInterval: 4000, retry: false });
-  const [receipt, setReceipt] = useState<Txn | null>(null);
+  const [receipt, setReceipt] = useState<{ txn: Txn; trade: FeedTrade } | null>(null);
   const now = Date.now();
   const rows = data ?? [];
   return <Overlay><AnimatePresence>{open && <motion.div key="bot-info" role="dialog" aria-modal="true" aria-label="About the trading bot" className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-3 backdrop-blur-md sm:items-center sm:p-5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} onClick={onClose}>
@@ -54,11 +54,11 @@ export function BotInfo({ open, onClose, maxMultiplier }: { open: boolean; onClo
         <p className="mt-6 flex items-center justify-between gap-3 border-t border-border pt-4 text-[13px]"><span className="mono-label text-muted-foreground">Routing</span><a href="https://pumpportal.fun" target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-4 transition hover:text-muted-foreground">https://pumpportal.fun</a></p>
       </div>
     </motion.div>
-    <Receipt txn={receipt} iban="" holder="" anonymous onClose={() => setReceipt(null)}/>
+    <Receipt txn={receipt?.txn ?? null} iban="" holder="" anonymous trade={receipt ? { id: receipt.trade.id, amount: receipt.trade.amount, multiplier: receipt.trade.multiplier, status: receipt.trade.status, created_at: receipt.trade.placedAt, settled_at: receipt.trade.settledAt } : null} onClose={() => setReceipt(null)}/>
   </motion.div>}</AnimatePresence></Overlay>;
 }
 
-function TradeRow({ t, now, onReceipt }: { t: FeedTrade; now: number; onReceipt: (t: Txn) => void }) {
+function TradeRow({ t, now, onReceipt }: { t: FeedTrade; now: number; onReceipt: (r: { txn: Txn; trade: FeedTrade }) => void }) {
   const live = t.status === 'pending'; const won = t.status === 'success';
   const result = live ? 'Live' : won ? `+${formatMoney(t.payout - t.amount)}` : `−${formatMoney(t.amount)}`;
   return <li className="rounded-2xl bg-muted px-4 py-3">
@@ -67,8 +67,8 @@ function TradeRow({ t, now, onReceipt }: { t: FeedTrade; now: number; onReceipt:
       <div className="text-right"><p className="tabular-nums font-medium">{formatMoney(t.amount)}</p><p className={`mt-0.5 text-xs font-medium tabular-nums ${live ? 'text-muted-foreground' : won ? 'text-success' : 'text-destructive'}`}>{live ? <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success"/>Live</span> : result}</p></div>
     </div>
     {(t.stake || t.payoutReceipt) && <div className="mt-2.5 flex flex-wrap gap-2">
-      {t.stake && <button type="button" onClick={() => onReceipt(asTxn({ ...t.stake as FeedReceipt, amount: -t.amount }, 'investment'))} className="rounded-full bg-card px-3 py-1 text-xs font-medium ring-1 ring-border transition hover:bg-secondary">Stake receipt <span className="font-mono text-muted-foreground">{t.stake.reference.slice(-6)}</span></button>}
-      {t.payoutReceipt && <button type="button" onClick={() => onReceipt(asTxn(t.payoutReceipt as FeedReceipt, 'investment_payout'))} className="rounded-full bg-card px-3 py-1 text-xs font-medium ring-1 ring-border transition hover:bg-secondary">Payout receipt <span className="font-mono text-muted-foreground">{t.payoutReceipt.reference.slice(-6)}</span></button>}
+      {t.stake && <button type="button" onClick={() => onReceipt({ txn: asTxn({ ...t.stake as FeedReceipt, amount: -t.amount }, 'investment'), trade: t })} className="rounded-full bg-card px-3 py-1 text-xs font-medium ring-1 ring-border transition hover:bg-secondary">Stake receipt <span className="font-mono text-muted-foreground">{t.stake.reference.slice(-6)}</span></button>}
+      {t.payoutReceipt && <button type="button" onClick={() => onReceipt({ txn: asTxn(t.payoutReceipt as FeedReceipt, 'investment_payout'), trade: t })} className="rounded-full bg-card px-3 py-1 text-xs font-medium ring-1 ring-border transition hover:bg-secondary">Payout receipt <span className="font-mono text-muted-foreground">{t.payoutReceipt.reference.slice(-6)}</span></button>}
     </div>}
   </li>;
 }

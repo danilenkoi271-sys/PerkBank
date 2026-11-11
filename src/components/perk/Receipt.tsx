@@ -1,5 +1,7 @@
 import { X } from "lucide-react";
 import { TxnIcon } from "./TxnIcon";
+import { TradeChartSection } from "./TradeChart";
+import type { TradeSeriesOrder } from "@/lib/live-trade";
 import { PerkLogo } from "./PerkCard";
 import { formatMoney, getCategory } from "@/lib/categories";
 import type { Txn } from "@/lib/bank";
@@ -23,7 +25,8 @@ const NOTCH = "radial-gradient(circle 12px at 0 100%, transparent 97%, #000) lef
 const SCALLOP = "radial-gradient(circle 13px at 50% 100%, transparent 97%, #000) 0 0 / 44px 100% repeat-x";
 
 /** `anonymous` leaves out the account holder and IBAN, for receipts shown to people other than the owner. */
-export function Receipt({ txn, iban, holder, onClose, anonymous = false }: { txn: Txn | null; iban: string; holder: string; onClose: () => void; anonymous?: boolean }) {
+/** `trade` adds the chart of the trade behind a stake or payout receipt, replayed from the trade itself. */
+export function Receipt({ txn, iban, holder, onClose, anonymous = false, trade = null }: { txn: Txn | null; iban: string; holder: string; onClose: () => void; anonymous?: boolean; trade?: (TradeSeriesOrder & { amount: number }) | null }) {
   if (!txn) return null;
   const cat = getCategory(txn.category);
   const d = new Date(txn.created_at);
@@ -52,6 +55,7 @@ export function Receipt({ txn, iban, holder, onClose, anonymous = false }: { txn
               <div className="mt-1 font-semibold">{d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</div></div>
             {txn.note && <div className="col-span-2"><div className="text-xs uppercase tracking-wide text-muted-foreground">Note</div><div className="mt-1 font-medium">{txn.note}</div></div>}
           </div>
+          {trade && <TradeChartSection order={trade}/>}
           {!anonymous && (
           <div className="mt-5 flex items-center gap-3 rounded-2xl bg-muted p-4">
             <div className="flex h-9 w-12 items-center justify-center rounded-md bg-sky text-[11px] font-bold text-primary-foreground">perk</div>

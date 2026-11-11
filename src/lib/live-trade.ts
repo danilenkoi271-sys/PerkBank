@@ -236,3 +236,32 @@ export function asDisplayed<T extends { status: string; payout: number; settled_
 export function heldWinnings(orders: { status: string; payout: number; settled_at: string | null }[], nowMs: number) {
   return orders.reduce((sum, o) => sum + (o.status === 'success' && isPlayingOut(o, nowMs) ? o.payout : 0), 0);
 }
+
+/** The price of an order at one moment: the wander while it is live, then the final move once it is settled. */
+export function orderValueAt(order: LiveOrder, settleStartMs: number | undefined, t: number) {
+  return settleStartMs !== undefined && t >= settleStartMs ? settlingValue(order, settleStartMs, t) : pendingValue(order, t);
+}
+
+export type TradeSeriesOrder = LiveOrder & { settled_at?: string | null };
+export type TradeSeries = { points: [number, number][]; start: number; end: number; finished: boolean };
+
+/**
+ * The whole chart of a trade, from the moment it went live to the end of its final move (or to now, if it is still
+ * playing). It is not stored anywhere: it is the very same price model that draws the live chart, so it is exactly
+ * what the owner watched, on every device, forever. Do not change the price model without a good reason: the golden
+ * test in src/test/trade-series.test.ts fails if it would redraw an existing receipt.
+ */
+export function tradeSeries(order: TradeSeriesOrder, nowMs: number, maxPoints = 240): TradeSeries | null {
+  const fill = fillTime(order);
+  if (!Number.isFinite(fill)) return null;
+  const at = order.status !== 'pending' && order.settled_at ? Date.parse(order.settled_at) : NaN;
+  const settleStart = Number.isFinite(at) ? at : undefined;
+  const glideEnd = settleStart !== undefined ? settleStart + settleDuration(order) : undefined;
+  const end = glideEnd !== undefined ? Math.min(nowMs, glideEnd) : nowMs;
+  if (end <= fill) return null; // the trade has not gone live yet
+  const step = Math.max(500, (end - fill) / maxPoints);
+  const points: [number, number][] = [];
+  for (let t = fill; t < end; t += step) points.push([t, orderValueAt(order, settleStart, t)]);
+  points.push([end, orderValueAt(order, settleStart, end)]);
+  return { points, start: fill, end, finished: glideEnd !== undefined && end >= glideEnd };
+}
