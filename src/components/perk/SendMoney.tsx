@@ -55,8 +55,8 @@ export function SendMoney({ balance, onSent }: { balance: number; onSent: () => 
   }
 
   return (
-    <form className="text-card-foreground" onSubmit={e => { e.preventDefault(); void submit(); }}>
-      <div className="panel p-6 sm:p-8">
+    <form className="grid content-center gap-3 text-card-foreground md:grid-cols-2" onSubmit={e => { e.preventDefault(); void submit(); }}>
+      <div className="panel p-5 sm:p-6">
         <label htmlFor="recipient-iban" className="field-label">Recipient IBAN</label>
         <div className="flex gap-2">
           <input
@@ -80,18 +80,18 @@ export function SendMoney({ balance, onSent }: { balance: number; onSent: () => 
         </AnimatePresence>
       </div>
 
-      <div className="panel mt-3 p-6 sm:p-8">
+      <div className="panel p-5 sm:p-6">
         <label htmlFor="send-amount" className="field-label">Amount ($)</label>
         <div className="flex items-baseline gap-1 border-b border-border pb-3 focus-within:border-ink">
-          <span className="text-[44px] font-medium leading-none tracking-[-0.05em] text-muted-foreground">$</span>
-          <input id="send-amount" value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0.01" step="0.01" placeholder="0.00" inputMode="decimal" className="w-full min-w-0 bg-transparent text-[56px] font-medium leading-none tracking-[-0.05em] outline-none tabular-nums placeholder:text-ink/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+          <span className="text-[clamp(34px,6dvh,44px)] font-medium leading-none tracking-[-0.05em] text-muted-foreground">$</span>
+          <input id="send-amount" value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min="0.01" step="0.01" placeholder="0.00" inputMode="decimal" className="w-full min-w-0 bg-transparent text-[clamp(40px,7dvh,56px)] font-medium leading-none tracking-[-0.05em] outline-none tabular-nums placeholder:text-ink/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
         </div>
         <div className="mt-3 text-xs text-muted-foreground">Balance: <span className="tabular-nums text-ink">{formatMoney(balance)}</span></div>
-        <label htmlFor="send-note" className="field-label mt-8">Note (optional)</label>
-        <input id="send-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="What's it for?" className="field" />
+        <label htmlFor="send-note" className="field-label mt-5">Note (optional)</label>
+        <input id="send-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="What's it for?" className="field !h-12" />
       </div>
 
-      <Button type="submit" disabled={busy || !recipient || recipient.self || !(value > 0)} className="mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-full bg-court text-base font-medium text-white hover:bg-[#2c56b0] disabled:opacity-35">
+      <Button type="submit" disabled={busy || !recipient || recipient.self || !(value > 0)} className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-court text-base font-medium text-white hover:bg-[#2c56b0] disabled:opacity-35 md:col-span-2">
         <ArrowUpRight className="h-5 w-5" />{busy ? "Sending…" : value > 0 ? `Send ${formatMoney(value)}` : "Send"}
       </Button>
     </form>

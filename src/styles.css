@@ -276,6 +276,22 @@
 .home-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: start; }
 @media (max-width: 1023px) { .home-grid { grid-template-columns: 1fr; } }
 
+/*
+ * Pages that fit one screen (home, invest, send): the page itself never scrolls; only panels that need to do so
+ * scroll inside themselves. On a very short screen the page falls back to scrolling so nothing is ever cut off.
+ */
+.bank-fixed { height: 100dvh; min-height: 560px; overflow-y: auto; padding-bottom: 0; display: flex; flex-direction: column; }
+.bank-fixed > .bank-header { flex: none; width: 100%; }
+.bank-fixed > .bank-main { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; padding-bottom: calc(108px + env(safe-area-inset-bottom)); }
+.bank-fixed > .bank-main > * { flex: 1; min-height: 0; }
+.bank-fixed .home-grid { height: 100%; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+.bank-fixed .home-grid > :first-child { align-self: start; }
+@media (max-width: 1023px) { .bank-fixed .home-grid { grid-template-rows: auto minmax(220px, 1fr); } }
+.txn-fixed { display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: hidden; }
+.txn-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 28px; scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / .2) transparent;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
+.txn-scroll::-webkit-scrollbar { width: 6px; } .txn-scroll::-webkit-scrollbar-thumb { background: rgb(255 255 255 / .18); border-radius: 6px; }
+
 .balance-panel { container-type: inline-size; background: radial-gradient(120% 80% at 100% 0%, rgb(52 99 196 / .38), transparent 55%), var(--ink); }
 .balance-figure { font-size: clamp(40px, 15cqw, 84px); white-space: nowrap; line-height: .95; font-weight: 500; letter-spacing: -0.055em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .balance-figure .cents { color: rgb(243 242 238 / .42); }
@@ -307,7 +323,7 @@
 .trade-slider [role="slider"] { width: 26px; height: 26px; background: #fff; border: 0; box-shadow: 0 0 0 1px var(--border), 0 6px 16px -6px rgb(11 12 14 / .4); transition: transform .2s; }
 .trade-slider [role="slider"]:active { transform: scale(1.12); }
 .trade-slider [role="slider"]:focus-visible { outline: 2px solid var(--court); outline-offset: 2px; }
-.invest-figure { font-size: clamp(56px, 8vw, 96px); line-height: .9; font-weight: 500; letter-spacing: -0.06em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.invest-figure { font-size: clamp(40px, 8dvh, 84px); line-height: .9; font-weight: 500; letter-spacing: -0.06em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
 /* Leaderboard */
 .podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 12px; }

@@ -4,7 +4,7 @@ import { useServerFn } from '@tanstack/react-start';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'motion/react';
-import { AppError, AppLoading, PageHeading, ViewTransition } from '@/components/perk/AppShell';
+import { AppError, AppLoading, ViewTransition } from '@/components/perk/AppShell';
 import { EASE } from '@/components/perk/motion';
 import { useGlideHold } from '@/components/perk/useGlideHold';
 import { PerkLogo } from '@/components/perk/PerkCard';
@@ -26,9 +26,9 @@ function SendPage() {
   if (error || !data) return <AppError message="Payments couldn't load." action={<Button onClick={refresh} className="h-11 rounded-full px-6">Try again</Button>}/>;
   if (data.status === 'no_profile') return <Navigate to="/setup"/>;
   if (data.status === 'locked') return <UnlockFlow open onClose={() => void navigate({ to: '/account', search: { view: 'home' } })} onUnlocked={refresh}/>;
-  return <div className="bank-page">
+  return <div className="bank-page bank-fixed">
     <motion.header className="bank-header" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE }}><Link to="/" aria-label="Perk home"><PerkLogo className="text-[30px]"/></Link><Button asChild variant="ghost" className="h-10 rounded-full px-4 text-ink hover:bg-ink/5"><Link to="/account" search={{ view: 'home' }}><ArrowLeft className="h-4 w-4"/>Account</Link></Button></motion.header>
-    <main className="bank-main"><ViewTransition id="send" className="mx-auto max-w-[620px]">
+    <main className="bank-main"><ViewTransition id="send" className="mx-auto flex h-full w-full max-w-[940px] flex-col justify-center">
       <SendBody balance={data.account.balance} orders={data.orders} onSent={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/>
     </ViewTransition></main>
     <AccountNavigation active="send"/>
@@ -39,8 +39,14 @@ function SendPage() {
 function SendBody({ balance: rawBalance, orders, onSent }: { balance: number; orders: Parameters<typeof useGlideHold>[0]; onSent: () => void }) {
   const { heldPayout } = useGlideHold(orders);
   const balance = rawBalance - heldPayout;
-  return <>
-    <PageHeading eyebrow="Payments" title="Send" accent="money."><p className="mt-4 text-[15px] text-muted-foreground">Available balance <span className="ml-1 font-medium text-ink tabular-nums">{formatMoney(balance)}</span></p></PageHeading>
+  return <div className="flex flex-col gap-3">
+    <header className="mb-1 flex items-end justify-between gap-4 px-1">
+      <div>
+        <span className="mono-label hidden text-muted-foreground [@media(min-height:720px)]:inline">Payments</span>
+        <h1 className="mt-1 text-[clamp(28px,5dvh,44px)] font-medium leading-[1.05]">Send <span className="serif-accent">money.</span></h1>
+      </div>
+      <p className="pb-1 text-right text-[13px] text-muted-foreground">Available balance<span className="block text-[17px] font-medium text-ink tabular-nums">{formatMoney(balance)}</span></p>
+    </header>
     <SendMoney balance={balance} onSent={onSent}/>
-  </>;
+  </div>;
 }
