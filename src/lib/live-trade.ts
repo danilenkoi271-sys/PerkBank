@@ -217,3 +217,22 @@ export function hasActiveTrade(orders: { status: string; settled_at?: string | n
     return Number.isFinite(at) && nowMs < at + settleDuration({ id: '', amount: 0, multiplier: 0, status: o.status }) - graceMs;
   });
 }
+
+/** A trade the administrator has settled whose chart is still playing the result out for its owner. */
+export function isPlayingOut(o: { status: string; settled_at?: string | null }, nowMs: number) {
+  const at = o.settled_at ? Date.parse(o.settled_at) : NaN;
+  return o.status !== 'pending' && Number.isFinite(at) && nowMs < at + settleDuration({ id: '', amount: 0, multiplier: 0, status: o.status });
+}
+
+/**
+ * The order as anyone other than the owner's own chart may see it. Until the chart has finished, the result stays
+ * hidden: it still counts as live, with no payout. Use this for anything shown across users (league, live feed).
+ */
+export function asDisplayed<T extends { status: string; payout: number; settled_at: string | null }>(o: T, nowMs: number): T {
+  return isPlayingOut(o, nowMs) ? { ...o, status: 'pending', payout: 0, settled_at: null } : o;
+}
+
+/** Winnings already credited to the account that the owner's chart has not revealed yet. */
+export function heldWinnings(orders: { status: string; payout: number; settled_at: string | null }[], nowMs: number) {
+  return orders.reduce((sum, o) => sum + (o.status === 'success' && isPlayingOut(o, nowMs) ? o.payout : 0), 0);
+}

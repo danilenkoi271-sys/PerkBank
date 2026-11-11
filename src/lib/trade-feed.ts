@@ -1,4 +1,4 @@
-import { settleDuration } from './live-trade';
+import { isPlayingOut } from './live-trade';
 
 /** Raw rows as they come out of the database. Never sent to the browser as they are. */
 export type FeedOrderRow = { id: string; user_id: string; amount: number; multiplier: number; status: string; payout: number; created_at: string; settled_at: string | null };
@@ -28,8 +28,7 @@ export function buildTradeFeed({ orders, txns, adminIds, now, limit = 50 }: { or
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
     .slice(0, limit)
     .map(o => {
-      const settled = o.settled_at ? Date.parse(o.settled_at) : NaN;
-      const playing = o.status !== 'pending' && Number.isFinite(settled) && now < settled + settleDuration(o);
+      const playing = isPlayingOut(o, now);
       const final = o.status !== 'pending' && !playing;
       const mine = byOrder.get(o.id) ?? [];
       const stake = mine.find(t => t.category === 'investment');

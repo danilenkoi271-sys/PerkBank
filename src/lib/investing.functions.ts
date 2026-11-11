@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { requireUnlocked } from './auth.server';
 import { maskName, tradeInput, tradeStats } from './investing';
-import { hasActiveTrade } from './live-trade';
+import { asDisplayed, hasActiveTrade, heldWinnings } from './live-trade';
 import { buildTradeFeed } from './trade-feed';
 export const placeTrade = createServerFn({method:'POST'}).middleware([requireSupabaseAuth]).inputValidator(d=>tradeInput.parse(d)).handler(async({data,context})=>{
  await requireUnlocked(context.userId);
@@ -22,7 +22,9 @@ export const getLeaderboard = createServerFn({method:'GET'}).middleware([require
  profiles.data = profiles.data.filter(p=>!adminIds.has(p.id));
  const { resolveProfilePhoto } = await import('./profile-photo.server');
  await Promise.all(profiles.data.map(async p => { p.avatar_url = await resolveProfilePhoto(p.avatar_url, supabaseAdmin.storage); }));
- return profiles.data.map(p=>({id:p.id,name:maskName(p.full_name),iban:p.iban,avatar_url:p.avatar_url,balance:Number(accounts.data.find(a=>a.user_id===p.id)?.balance??0),...tradeStats(orders.data.filter(o=>o.user_id===p.id).map(o=>({...o,amount:Number(o.amount),multiplier:Number(o.multiplier),payout:Number(o.payout)})))})).sort((a,b)=>b.pnl-a.pnl || b.balance-a.balance || a.id.localeCompare(b.id));
+ // A result is not allowed to move anyone up or down the league, or into their balance, until the owner's chart has finished playing it.
+ const now = Date.now();
+ return profiles.data.map(p=>{const mine=orders.data.filter(o=>o.user_id===p.id).map(o=>({...o,amount:Number(o.amount),multiplier:Number(o.multiplier),payout:Number(o.payout)}));return {id:p.id,name:maskName(p.full_name),iban:p.iban,avatar_url:p.avatar_url,balance:Math.max(0,Number(accounts.data.find(a=>a.user_id===p.id)?.balance??0)-heldWinnings(mine,now)),...tradeStats(mine.map(o=>asDisplayed(o,now)))};}).sort((a,b)=>b.pnl-a.pnl || b.balance-a.balance || a.id.localeCompare(b.id));
 });
 
 /**
