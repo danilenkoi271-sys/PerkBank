@@ -6,6 +6,8 @@ export const tradeInput = z.object({ amount: moneySchema, multiplier: z.number()
 export const ADMIN_EMAIL = 'danilenkoi271@gmail.com';
 export function isAdminIdentity(email: unknown, providers: unknown, confirmed: boolean) { return typeof email === 'string' && email.toLowerCase() === ADMIN_EMAIL && Array.isArray(providers) && providers.includes('google') && confirmed; }
 export function tradePayout(amount: number, multiplier: number, success: boolean) { return success ? Math.round(amount * multiplier * 100) / 100 : 0; }
+/** What other members see: the real name only if its owner chose to make it public, otherwise the censored one. */
+export function displayName(fullName: string, isPublic: boolean) { return isPublic ? fullName : maskName(fullName); }
 export function maskName(name: string) { return name.split(/\s+/).map(s => s.slice(0,1) + '•'.repeat(Math.min(5, Math.max(2,s.length-1)))).join(' '); }
 export type Trade = { id: string; amount: number; multiplier: number; status: string; payout: number; created_at: string; settled_at: string | null };
 export function tradeStats(orders: Trade[], now = new Date()) {

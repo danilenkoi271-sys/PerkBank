@@ -70,7 +70,7 @@ function AccountPage() {
           <TransactionsPanel txns={txns} orders={orders} clockOffset={offsetRef.current ?? 0} filter={filter} setFilter={setFilter} onSelect={setSelected}/>
         </ViewTransition>
         : view === 'invest' ? <ViewTransition id="invest" className="h-full"><Invest balance={account.balance} maxMultiplier={maxMultiplierOf(perksQuery.data)} orders={orders} clockOffset={offsetRef.current ?? 0} onPlaced={() => { refresh(); void navigate({ to: '/account', search: { view: 'home' } }); }}/></ViewTransition>
-        : view === 'leaderboard' ? <ViewTransition id="leaderboard"><Leaderboard/></ViewTransition>
+        : view === 'leaderboard' ? <ViewTransition id="leaderboard"><Leaderboard name={profile.full_name}/></ViewTransition>
         : <ViewTransition id="perks"><PerksView query={perksQuery} iban={profile.iban ?? ''} onChanged={refresh}/></ViewTransition>}
       </AnimatePresence>
     </main>

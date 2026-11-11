@@ -8,12 +8,14 @@ import { Button } from '@/components/ui/button';
 import { AnimatePresence, motion } from 'motion/react';
 import { Overlay, PageHeading } from './AppShell';
 import { EASE } from './motion';
+import { LeaguePrivacy } from './LeaguePrivacy';
 type Member=Awaited<ReturnType<typeof getLeaderboard>>[number];
 export function MemberAvatar({name,url,className='h-12 w-12'}:{name:string;url:string|null;className?:string}) {return url?<img src={url} alt={`${name} profile`} referrerPolicy="no-referrer" className={`${className} rounded-full object-cover bg-muted`} onError={e=>{e.currentTarget.style.display='none';}}/>:<span className={`${className} flex shrink-0 items-center justify-center rounded-full bg-ink text-bone font-medium`}>{name.slice(0,1)}</span>;}
-export function Leaderboard(){const fetch=useServerFn(getLeaderboard);const{data,isLoading,error}=useQuery({queryKey:['leaderboard'],queryFn:()=>fetch(),refetchInterval:15000});const[selected,setSelected]=useState<Member|null>(null);const members=data??[];
+export function Leaderboard({name}:{name:string}){const fetch=useServerFn(getLeaderboard);const{data,isLoading,error}=useQuery({queryKey:['leaderboard'],queryFn:()=>fetch(),refetchInterval:15000});const[selected,setSelected]=useState<Member|null>(null);const members=data??[];
  const heights=['h-[168px] sm:h-[200px]','h-[124px] sm:h-[148px]','h-[96px] sm:h-[112px]'];
  return <section className="mx-auto max-w-[760px]">
   <PageHeading eyebrow="The Perk League" title="Top of the" accent="league."><p className="mt-4 text-[15px] text-muted-foreground">Ranked by total trading PNL.</p></PageHeading>
+  <LeaguePrivacy name={name}/>
   {isLoading?<p className="mt-10 text-muted-foreground">Loading members…</p>:error?<p className="mt-10 text-muted-foreground">Leaderboard unavailable.</p>:<>
   <div className="podium">{[1,0,2].map((i,col)=>{const m=members[i];return m?<button key={m.id} type="button" onClick={()=>setSelected(m)} className={`podium-${i+1} group flex flex-col items-center text-center`}>
     <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{duration:.7,ease:EASE,delay:.35+col*.08}} className="flex flex-col items-center px-1">

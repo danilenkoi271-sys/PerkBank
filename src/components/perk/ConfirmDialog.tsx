@@ -13,6 +13,8 @@ export type ConfirmOptions = {
   confirmLabel: string;
   cancelLabel?: string;
   tone?: Tone;
+  /** Replaces the tone's default icon. */
+  icon?: ReactNode;
 };
 
 const toneStyle: Record<Tone, { badge: string; button: string; icon: ReactNode }> = {
@@ -48,7 +50,7 @@ export function useConfirm() {
   const tone = toneStyle[open?.tone ?? 'neutral'];
   const dialog = <Overlay><AnimatePresence>{open && <motion.div key="confirm" className="fixed inset-0 z-[60] flex items-end justify-center bg-ink/45 p-3 backdrop-blur-md sm:items-center sm:p-5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} onClick={() => close(false)}>
     <motion.div role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby={open.body ? 'confirm-body' : undefined} className="w-full max-w-[400px] rounded-[28px] bg-card p-6 text-card-foreground shadow-[0_40px_80px_-30px_rgb(11_12_14/.55)]" initial={{ opacity: 0, y: 32, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 24, scale: 0.97 }} transition={{ duration: 0.5, ease: EASE }} onClick={e => e.stopPropagation()}>
-      <span className={`flex h-12 w-12 items-center justify-center rounded-full ${tone.badge}`}>{tone.icon}</span>
+      <span className={`flex h-12 w-12 items-center justify-center rounded-full ${tone.badge}`}>{open.icon ?? tone.icon}</span>
       <h2 id="confirm-title" className="mt-5 text-[24px] font-medium leading-tight">{open.title}</h2>
       {open.body && <p id="confirm-body" className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{open.body}</p>}
       {open.rows && <dl className="mt-5 divide-y divide-border overflow-hidden rounded-2xl bg-bone">{open.rows.map(([k, v]) => <div key={k} className="flex items-center justify-between gap-4 px-4 py-3"><dt className="mono-label text-muted-foreground">{k}</dt><dd className="truncate text-[15px] font-medium tabular-nums">{v}</dd></div>)}</dl>}
