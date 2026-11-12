@@ -1,9 +1,10 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
-import { getAccountSession, pinHash, requireUnlocked, safeEqual } from './auth.server';
+import { getAccountSession, pinHash, requireUnlocked, verifyPin } from './auth.server';
+import { beginPinAttempt, limitLookups, limitTransfers, moneyRpc } from './guards.server';
 import { sendInput, setupInput } from './validation';
-import { ibanSchema, isAdminIdentity } from './investing';
+import { displayName, ibanSchema, isAdminIdentity } from './investing';
 import { photoPathInput, validatePhotoOwner } from './profile-photo';
 export const getSetupInfo = createServerFn({method:'GET'}).middleware([requireSupabaseAuth]).handler(async ({context}) => {
  const {data} = await context.supabase.from('profiles').select('id').eq('id',context.userId).maybeSingle();
@@ -22,9 +23,17 @@ export const setupProfile = createServerFn({method:'POST'}).middleware([requireS
  await (await getAccountSession()).update({userId:context.userId}); return {ok:true};
 });
 export const unlockAccount = createServerFn({method:'POST'}).middleware([requireSupabaseAuth]).inputValidator(d=>z.object({pin:z.string().regex(/^\d{5}$/)}).parse(d)).handler(async({data,context})=>{
- const {data:profile} = await context.supabase.from('profiles').select('pin_hash').eq('id',context.userId).maybeSingle();
- if(!profile || !(await safeEqual(await pinHash(context.userId,data.pin),profile.pin_hash))) return {ok:false};
- await (await getAccountSession()).update({userId:context.userId}); return {ok:true};
+ const {supabaseAdmin} = await import('@/integrations/supabase/client.server');
+ // Guesses are counted before the PIN is looked at. The hash is read with the server's own access, never the member's token.
+ const gate = await beginPinAttempt(supabaseAdmin, context.userId);
+ if(!gate.allowed) return {ok:false as const,locked:true,retryAfterSeconds:gate.retryAfterSeconds};
+ const {data:profile} = await supabaseAdmin.from('profiles').select('pin_hash').eq('id',context.userId).maybeSingle();
+ const check = profile ? await verifyPin(context.userId,data.pin,profile.pin_hash) : {ok:false,upgrade:false};
+ await gate.finish(check.ok);
+ if(!check.ok){ await new Promise(r=>setTimeout(r,400)); return {ok:false as const,locked:false,retryAfterSeconds:0}; }
+ // An old-format hash is replaced with the stronger one the first time its owner signs in.
+ if(check.upgrade) await supabaseAdmin.from('profiles').update({pin_hash:await pinHash(context.userId,data.pin)}).eq('id',context.userId);
+ await (await getAccountSession()).update({userId:context.userId}); return {ok:true as const,locked:false,retryAfterSeconds:0};
 });
 export const lockAccount = createServerFn({method:'POST'}).middleware([requireSupabaseAuth]).handler(async()=>{ await (await getAccountSession()).clear(); return {ok:true}; });
 export const getAccountData = createServerFn({method:'GET'}).middleware([requireSupabaseAuth]).handler(async({context})=>{
@@ -46,20 +55,32 @@ export const getAccountData = createServerFn({method:'GET'}).middleware([require
 });
 export const lookupRecipient = createServerFn({method:'POST'}).middleware([requireSupabaseAuth]).inputValidator(d=>z.object({iban:ibanSchema}).parse(d)).handler(async({data,context})=>{
  await requireUnlocked(context.userId);
+ // Five-digit IBANs can be walked through one by one, so lookups are limited.
+ if(!limitLookups(context.userId).allowed) throw new Error('Too many lookups. Try again in a few minutes.');
  const {supabaseAdmin} = await import('@/integrations/supabase/client.server');
- const {data:p,error} = await supabaseAdmin.from('profiles').select('id,full_name,iban').eq('iban',data.iban).maybeSingle();
- if(error) throw new Error('Lookup unavailable');
- return p ? {found:true as const,iban:p.iban ?? data.iban,full_name:p.full_name,self:p.id===context.userId} : {found:false as const};
+ // public_name may not exist until the database change is applied; then everyone is shown masked.
+ type Row = { id: string; full_name: string; iban: string | null; public_name?: boolean | null };
+ type Q = { select: (c: string) => { eq: (k: string, v: string) => { maybeSingle: () => Promise<{ data: Row | null; error: { message: string } | null }> } } };
+ const profiles = () => (supabaseAdmin as unknown as { from: (t: string) => Q }).from('profiles');
+ let found = await profiles().select('id,full_name,iban,public_name').eq('iban',data.iban).maybeSingle();
+ if(found.error) found = await profiles().select('id,full_name,iban').eq('iban',data.iban).maybeSingle();
+ if(found.error) throw new Error('Lookup unavailable');
+ const p = found.data;
+ // The name shown here follows the member's own league privacy choice, so a lookup can never reveal a hidden name.
+ return p ? {found:true as const,iban:p.iban ?? data.iban,full_name:p.id===context.userId ? p.full_name : displayName(p.full_name,p.public_name===true),self:p.id===context.userId} : {found:false as const};
 });
 export const sendMoney = createServerFn({method:'POST'}).middleware([requireSupabaseAuth]).inputValidator(d=>sendInput.parse(d)).handler(async({data,context})=>{
  await requireUnlocked(context.userId);
- const {error} = await context.supabase.rpc('transfer_by_iban',{_iban:data.iban,_amount:data.amount,...(data.note?{_note:data.note}:{})});
+ if(!limitTransfers(context.userId).allowed) throw new Error('Too many transfers. Try again in a few minutes.');
+ const {supabaseAdmin} = await import('@/integrations/supabase/client.server');
+ const {error} = await moneyRpc(supabaseAdmin,context.supabase,context.userId,'transfer_by_iban',{_iban:data.iban,_amount:data.amount,...(data.note?{_note:data.note}:{})});
  if(error) throw new Error(error.message); return {ok:true};
 });
 export const updateProfilePhoto = createServerFn({method:'POST'}).middleware([requireSupabaseAuth]).inputValidator(d=>photoPathInput.parse(d)).handler(async({data,context})=>{
  await requireUnlocked(context.userId);
  validatePhotoOwner(data.path, context.userId);
- const { error } = await context.supabase.rpc('update_profile_photo', { _path: data.path });
+ const {supabaseAdmin} = await import('@/integrations/supabase/client.server');
+ const { error } = await moneyRpc(supabaseAdmin, context.supabase, context.userId, 'update_profile_photo', { _path: data.path });
  if (error) throw new Error('Photo could not be saved');
  return { ok: true };
 });

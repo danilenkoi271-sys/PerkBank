@@ -5,14 +5,16 @@ import { displayName, tradeInput, tradeStats } from './investing';
 import { z } from 'zod';
 import { asDisplayed, hasActiveTrade, heldWinnings } from './live-trade';
 import { buildTradeFeed } from './trade-feed';
+import { moneyRpc } from './guards.server';
 export const placeTrade = createServerFn({method:'POST'}).middleware([requireSupabaseAuth]).inputValidator(d=>tradeInput.parse(d)).handler(async({data,context})=>{
  await requireUnlocked(context.userId);
  // One trade at a time: refuse while a trade is pending or still playing out its result.
  const {data:existing,error:existingError} = await context.supabase.from('trade_orders').select('status,settled_at').eq('user_id',context.userId);
  if(existingError) throw new Error('Trading is unavailable right now');
  if(hasActiveTrade(existing,Date.now(),2000)) throw new Error('You already have a trade running. You can place another once it finishes.');
- const {data:id,error} = await context.supabase.rpc('place_demo_trade',{_amount:data.amount,_multiplier:data.multiplier});
- if(error) throw new Error(error.message); return {id};
+ const {supabaseAdmin} = await import('@/integrations/supabase/client.server');
+ const {data:id,error} = await moneyRpc(supabaseAdmin,context.supabase,context.userId,'place_demo_trade',{_amount:data.amount,_multiplier:data.multiplier});
+ if(error) throw new Error(error.message); return {id:String(id)};
 });
 export const getLeaderboard = createServerFn({method:'GET'}).middleware([requireSupabaseAuth]).handler(async({context})=>{
  await requireUnlocked(context.userId);

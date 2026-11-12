@@ -16,7 +16,7 @@ beforeEach(() => {
 });
 
 it("rejects a locked account before contacting AI", async () => {
-  const response = await handleAskAi(new Request("http://localhost:8080/api/ask-ai", { method: "POST" }));
+  const response = await handleAskAi(new Request("http://localhost:8080/api/ask-ai", { method: "POST", headers: { origin: "http://localhost:8080" } }));
   expect(response.status).toBe(401);
   expect(mocks.modelCall).not.toHaveBeenCalled();
 });
@@ -28,4 +28,9 @@ it("rejects another site's request before account access", async () => {
   expect(response.status).toBe(403);
   expect(mocks.getSession).not.toHaveBeenCalled();
   expect(mocks.modelCall).not.toHaveBeenCalled();
+});
+it("rejects a request with no origin at all, because the cookie alone authorises this route", async () => {
+  const response = await handleAskAi(new Request("http://localhost:8080/api/ask-ai", { method: "POST" }));
+  expect(response.status).toBe(403);
+  expect(mocks.getSession).not.toHaveBeenCalled();
 });

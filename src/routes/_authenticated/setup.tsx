@@ -8,6 +8,7 @@ import { Lock, User } from "lucide-react";
 import { motion } from "motion/react";
 import { PerkLogo } from "@/components/perk/PerkCard";
 import { getSetupInfo, setupProfile } from "@/lib/account.functions";
+import { isObviousPin } from "@/lib/validation";
 
 export const Route = createFileRoute("/_authenticated/setup")({
   head: () => ({
@@ -48,6 +49,7 @@ function SetupPage() {
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (isObviousPin(pin)) { toast.error("Pick a PIN that is harder to guess."); return; }
     setBusy(true);
     try {
       await setup({ data: { full_name: name.trim(), pin } });

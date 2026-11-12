@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { requireUnlocked } from './auth.server';
 import { ibanCheckInput, perkStateSchema, purchaseInput } from './perks';
+import { limitLookups, moneyRpc } from './guards.server';
 
 /**
  * The perk database functions are newer than the generated Supabase types, so they are called through this thin,
@@ -23,6 +24,7 @@ export const getPerks = createServerFn({ method: 'GET' }).middleware([requireSup
 /** Whether a five-digit IBAN is free to take. Used for the live check while choosing a custom IBAN. */
 export const checkIbanAvailable = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth]).inputValidator(d => ibanCheckInput.parse(d)).handler(async ({ data, context }) => {
   await requireUnlocked(context.userId);
+  if (!limitLookups(context.userId).allowed) throw new Error('Too many checks. Try again in a few minutes.');
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data: row, error } = await supabaseAdmin.from('profiles').select('id').eq('iban', data.iban).maybeSingle();
   if (error) throw new Error('Could not check that IBAN');
@@ -35,7 +37,8 @@ export const checkIbanAvailable = createServerFn({ method: 'POST' }).middleware(
  */
 export const purchasePerk = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth]).inputValidator(d => purchaseInput.parse(d)).handler(async ({ data, context }) => {
   await requireUnlocked(context.userId);
-  const { data: id, error } = await rpcOf(context.supabase)('purchase_perk', { _perk_id: data.perkId, _iban: data.iban ?? null });
+  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+  const { data: id, error } = await moneyRpc(supabaseAdmin, context.supabase, context.userId, 'purchase_perk', { _perk_id: data.perkId, _iban: data.iban ?? null });
   if (error) throw new Error(error.message);
   return { id: String(id) };
 });

@@ -12,12 +12,6 @@ export async function safeEqual(input: string, expected: string) {
   return diff === 0;
 }
 
-export async function checkAdminPassword(input: string) {
-  const expected = process.env["ADMIN_PASSWORD"];
-  if (!expected) throw new Error("Admin password is not set");
-  if (!(await safeEqual(input, expected))) throw new Error("Wrong password");
-}
-
 type AccountSession = { userId?: string; aiDenied?: string };
 
 export function getAccountSession() {
@@ -29,24 +23,40 @@ export function getAccountSession() {
   });
 }
 
-/** Salted, per-user PIN hash — the raw PIN is never stored. */
+const hex = (buf: ArrayBuffer) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
+
+function pinSecret() {
+  const secret = process.env["SESSION_SECRET"];
+  // Never fall back to a built-in value: a missing secret must stop PIN checks, not weaken them.
+  if (!secret || secret.length < 16) throw new Error("Server is not configured");
+  return secret;
+}
+
+/**
+ * Current PIN hash: PBKDF2-SHA256 (100,000 rounds, the most Cloudflare Workers allow) with a per-user salt and a
+ * server-only secret, so a copied hash cannot be guessed offline without the secret. The raw PIN is never stored.
+ */
 export async function pinHash(userId: string, pin: string) {
-  const secret = process.env["SESSION_SECRET"] ?? "perk-dev";
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${secret}:${userId}:${pin}`));
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", iterations: 100_000, salt: enc.encode(`${pinSecret()}:${userId}`) }, key, 256);
+  return `v2$${hex(bits)}`;
+}
+
+/** The first format (one SHA-256 round). Only used to recognise an old PIN once so it can be upgraded. */
+async function legacyPinHash(userId: string, pin: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${pinSecret()}:${userId}:${pin}`));
+  return hex(digest);
+}
+
+/** Checks a PIN against the stored hash. `upgrade` is true when the stored hash is the old format and should be rewritten. */
+export async function verifyPin(userId: string, pin: string, stored: string) {
+  if (stored.startsWith("v2$")) return { ok: await safeEqual(await pinHash(userId, pin), stored), upgrade: false };
+  return { ok: await safeEqual(await legacyPinHash(userId, pin), stored), upgrade: true };
 }
 
 /** Every account-data server function must pass this gate after auth. */
 export async function requireUnlocked(userId: string) {
   const session = await getAccountSession();
   if (session.data.userId !== userId) throw new Error("Unlock your account with your PIN first");
-}
-
-/** Demo card details, generated per user at setup. */
-export function generateCard() {
-  const digits = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b % 10).join("");
-  const number = `4539 ${digits(4)} ${digits(4)} ${digits(4)}`;
-  const month = String(((crypto.getRandomValues(new Uint8Array(1))[0] ?? 0) % 12) + 1).padStart(2, "0");
-  const year = String((new Date().getFullYear() + 4) % 100).padStart(2, "0");
-  return { card_number: number, expiry: `${month}/${year}`, cvc: digits(3), last4: number.slice(-4) };
 }

@@ -1,5 +1,6 @@
 import { APICallError, convertToModelMessages } from "ai";
 import { getAccountSession } from "./auth.server";
+import { limitQuestions } from "./guards.server";
 import { aiChatInput, projectAiContext } from "./ai-context";
 import { createResponsesCall } from "./ai/responses.server";
 import { withLovableAiGatewayRunIdHeader } from "./ai/run-id.server";
@@ -7,12 +8,15 @@ import { withLovableAiGatewayRunIdHeader } from "./ai/run-id.server";
 export async function handleAskAi(request: Request) {
   const headers = { "Cache-Control": "no-store" };
   const fail = (message: string, status: number) => new Response(message, { status, headers });
+  // The cookie alone authorises this route, so it must only ever be called by this site's own pages.
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return fail("Request not allowed.", 403);
+  if (!origin || origin !== new URL(request.url).origin) return fail("Request not allowed.", 403);
+  if (request.headers.get("sec-fetch-site") === "cross-site") return fail("Request not allowed.", 403);
   const session = await getAccountSession();
   const userId = session.data.userId;
   if (!userId) return fail("Unlock your account to ask AI.", 401);
   if (session.data.aiDenied) return fail(session.data.aiDenied, 403);
+  if (!limitQuestions(userId).allowed) return fail("You're asking quickly. Try again in a few minutes.", 429);
   const parsed = aiChatInput.safeParse(await request.json().catch(() => null));
   if (!parsed.success || parsed.data.messages.at(-1)?.role !== "user") return fail("Please send a shorter text conversation.", 400);
   const apiKey = process.env["LOVABLE_API_KEY"];

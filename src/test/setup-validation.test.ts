@@ -1,10 +1,11 @@
 import { describe,expect,it } from 'vitest';
-import { pinSchema,setupInput,sendInput } from '@/lib/validation';
+import { pinSchema,newPinSchema,setupInput,sendInput } from '@/lib/validation';
 import { ibanSchema,tradeInput,tradePayout,isAdminIdentity,tradeStats } from '@/lib/investing';
 describe('Account rules',()=>{
  it('requires a five digit PIN',()=>{expect(pinSchema.safeParse('12345').success).toBe(true);for(const p of ['1234','123456','1234a'])expect(pinSchema.safeParse(p).success).toBe(false);});
  it('uses exactly five numeric IBAN digits',()=>{expect(ibanSchema.safeParse('01234').success).toBe(true);for(const p of ['1234','123456','abcde'])expect(ibanSchema.safeParse(p).success).toBe(false);});
- it('requires a name at setup',()=>{expect(setupInput.safeParse({full_name:' ',pin:'12345'}).success).toBe(false);expect(setupInput.safeParse({full_name:'Alex',pin:'12345'}).success).toBe(true);});
+ it('requires a name at setup',()=>{expect(setupInput.safeParse({full_name:' ',pin:'48273'}).success).toBe(false);expect(setupInput.safeParse({full_name:'Alex',pin:'48273'}).success).toBe(true);});
+ it('refuses obvious PINs when choosing one',()=>{for(const p of ['12345','00000','11111','54321'])expect(newPinSchema.safeParse(p).success).toBe(false);expect(newPinSchema.safeParse('48273').success).toBe(true);});
  it('requires positive transfer amounts and at most two decimals',()=>{expect(sendInput.safeParse({iban:'12345',amount:25.5}).success).toBe(true);for(const amount of [-5,0,10.255])expect(sendInput.safeParse({iban:'12345',amount}).success).toBe(false);});
 });
 describe('Demo investing rules',()=>{
